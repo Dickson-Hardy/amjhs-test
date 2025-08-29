@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "routes": [
+    {
+      "src": "/api/health",
+      "dest": "/api/health"
+    },
+    {
+      "src": "/api/maintenance/(.*)",
+      "dest": "/api/maintenance/$1"
+    },
+    {
+      "src": "/maintenance",
+      "dest": "/maintenance"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ],
+  "functions": {
+    "app/api/*/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/auth/*/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "regions": ["iad1"],
+  "framework": "nextjs",
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm build",
+  "devCommand": "pnpm dev",
+  "crons": [
+    {
+      "path": "/api/cron/maintenance",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

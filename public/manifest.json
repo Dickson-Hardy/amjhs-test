@@ -1,0 +1,43 @@
+{
+  "name": "AMHSJ - Advances in Medicine & Health Sciences Journal",
+  "short_name": "AMHSJ",
+  "description": "The official journal of Bayelsa Medical University, providing a medium for research findings from the Niger Delta region and beyond in Medicine and Health Sciences",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e3a8a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo-amhsj.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["education", "medical", "research"],
+  "screenshots": [],
+  "related_applications": [],
+  "prefer_related_applications": false
+}
