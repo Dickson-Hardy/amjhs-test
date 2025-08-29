@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { RouteGuard } from "@/components/route-guard"
 import AuthorLayout from "@/components/layouts/author-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,6 +36,7 @@ interface Submission {
 
 export default function SubmissionsPage() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -43,6 +44,7 @@ interface Review {
 
 export default function SubmissionDetailPage() {
   const params = useParams()
+  const { data: session } = useSession()
   const submissionId = params.id as string
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
