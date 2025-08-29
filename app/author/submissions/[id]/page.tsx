@@ -50,26 +50,39 @@ export default function SubmissionDetailPage() {
 
   useEffect(() => {
     // Fetch submission details
-    fetchSubmissionDetails()
-    fetchReviews()
-  }, [submissionId])
+    if (session?.user?.id && submissionId) {
+      fetchSubmissionDetails()
+      fetchReviews()
+    }
+  }, [submissionId, session?.user?.id])
 
   const fetchSubmissionDetails = async () => {
     try {
-      // Mock data for now - replace with actual API call
-      const mockSubmission: Submission = {
-        id: submissionId,
-        title: "Impact of Telemedicine on Rural Healthcare Access",
-        status: "under_review",
-        submittedAt: "2024-01-15",
-        lastUpdated: "2024-01-20",
-        manuscriptFile: "manuscript_v1.docx",
-        coverLetter: "cover_letter.pdf",
-        authors: ["Dr. Sarah Johnson", "Dr. Michael Chen", "Dr. Emily Rodriguez"],
-        category: "Original Research",
-        abstract: "This study examines the effectiveness of telemedicine interventions in improving healthcare access for rural populations..."
+      // Try to fetch from the user's submissions and find the matching one
+      const response = await fetch(`/api/users/${session?.user?.id}/submissions`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          const foundSubmission = data.submissions.find((sub: any) => sub.id === submissionId)
+          if (foundSubmission) {
+            const transformedSubmission: Submission = {
+              id: foundSubmission.id,
+              title: foundSubmission.title || 'Untitled',
+              status: foundSubmission.status || 'submitted',
+              submittedAt: foundSubmission.submittedDate || foundSubmission.createdAt || new Date().toISOString(),
+              lastUpdated: foundSubmission.lastUpdate || foundSubmission.createdAt || new Date().toISOString(),
+              manuscriptFile: 'manuscript.docx', // Placeholder
+              coverLetter: 'cover_letter.pdf', // Placeholder
+              authors: [session?.user?.name || 'Author'], // Single author for now
+              category: foundSubmission.category || 'Original Research',
+              abstract: foundSubmission.abstract || 'Abstract not available'
+            }
+            setSubmission(transformedSubmission)
+          } else {
+            console.error("Submission not found")
+          }
+        }
       }
-      setSubmission(mockSubmission)
     } catch (error) {
       console.error("Error fetching submission:", error)
     } finally {
@@ -79,26 +92,10 @@ export default function SubmissionDetailPage() {
 
   const fetchReviews = async () => {
     try {
-      // Mock data for now - replace with actual API call
-      const mockReviews: Review[] = [
-        {
-          id: "1",
-          reviewerName: "Dr. Robert Smith",
-          status: "completed",
-          submittedAt: "2024-01-18",
-          comments: "Excellent study design and methodology. Minor revisions needed in discussion section.",
-          decision: "minor_revision"
-        },
-        {
-          id: "2",
-          reviewerName: "Dr. Lisa Wang",
-          status: "completed",
-          submittedAt: "2024-01-19",
-          comments: "Well-written manuscript with clear objectives. Some statistical analysis could be improved.",
-          decision: "minor_revision"
-        }
-      ]
-      setReviews(mockReviews)
+      // For now, return empty reviews since we don't have a reviews API endpoint
+      // In a real implementation, you would call something like:
+      // const response = await fetch(`/api/submissions/${submissionId}/reviews`)
+      setReviews([])
     } catch (error) {
       console.error("Error fetching reviews:", error)
     }

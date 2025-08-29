@@ -32,6 +32,7 @@ interface Author {
 export default function SubmitPage() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
+  const [loading, setLoading] = useState(false)
   const [submissionData, setSubmissionData] = useState({
     title: "",
     abstract: "",
@@ -111,9 +112,20 @@ export default function SubmitPage() {
 
     if (step === 1) {
       if (!submissionData.title.trim()) newErrors.title = "Title is required"
-      if (!submissionData.abstract.trim()) newErrors.abstract = "Abstract is required"
+      if (!submissionData.abstract.trim()) {
+        newErrors.abstract = "Abstract is required"
+      } else if (submissionData.abstract.trim().length < 100) {
+        newErrors.abstract = "Abstract must be at least 100 characters"
+      }
       if (!submissionData.category) newErrors.category = "Category is required"
-      if (!submissionData.keywords.trim()) newErrors.keywords = "Keywords are required"
+      if (!submissionData.keywords.trim()) {
+        newErrors.keywords = "Keywords are required"
+      } else {
+        const keywordArray = submissionData.keywords.split(',').map(k => k.trim()).filter(k => k.length > 0)
+        if (keywordArray.length < 3) {
+          newErrors.keywords = "At least 3 keywords are required"
+        }
+      }
     }
 
     if (step === 2) {
@@ -130,8 +142,9 @@ export default function SubmitPage() {
     }
 
     if (step === 3) {
-      if (!submissionData.manuscriptFile) newErrors.manuscriptFile = "Manuscript file is required"
-      if (!submissionData.coverLetter) newErrors.coverLetter = "Cover letter is required"
+      // Files are optional according to the API, but we can still encourage them
+      // if (!submissionData.manuscriptFile) newErrors.manuscriptFile = "Manuscript file is required"
+      // if (!submissionData.coverLetter) newErrors.coverLetter = "Cover letter is required"
     }
 
     if (step === 4) {
@@ -158,15 +171,51 @@ export default function SubmitPage() {
     if (!validateStep(4)) return
 
     try {
-      // Here you would submit the data to your API
-      console.log("Submitting:", submissionData)
+      setLoading(true)
       
-      // Mock submission success
-      alert("Submission successful! Your manuscript has been submitted for review.")
-      router.push("/author/submissions")
+      // Prepare submission data in the format expected by the API
+      const submissionPayload = {
+        articleData: {
+          title: submissionData.title,
+          abstract: submissionData.abstract,
+          keywords: submissionData.keywords.split(',').map(k => k.trim()).filter(k => k.length > 0),
+          category: submissionData.category,
+          authors: submissionData.authors.map(author => ({
+            firstName: author.firstName,
+            lastName: author.lastName,
+            email: author.email,
+            affiliation: author.affiliation,
+            isCorrespondingAuthor: author.isCorresponding
+          })),
+          funding: submissionData.funding,
+          ethicalApproval: submissionData.ethicalApproval,
+          conflictOfInterest: submissionData.conflictOfInterest,
+          coverLetter: submissionData.acknowledgments // Use acknowledgments as cover letter for now
+        },
+        submissionType: "new" as const
+      }
+
+      const response = await fetch('/api/workflow/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submissionPayload)
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        alert(`Submission successful! Your manuscript has been submitted for review. Submission ID: ${result.data.submissionId}`)
+        router.push("/author/submissions")
+      } else {
+        throw new Error(result.message || 'Submission failed')
+      }
     } catch (error) {
       console.error("Submission error:", error)
-      alert("Submission failed. Please try again.")
+      alert(`Submission failed: ${error instanceof Error ? error.message : 'Please try again.'}`)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -205,13 +254,13 @@ export default function SubmitPage() {
           id="abstract"
           value={submissionData.abstract}
           onChange={(e) => setSubmissionData(prev => ({ ...prev, abstract: e.target.value }))}
-          placeholder="Enter the abstract of your manuscript (300 words maximum)"
+          placeholder="Enter the abstract of your manuscript (minimum 100 characters)"
           rows={6}
           className={errors.abstract ? "border-red-500" : ""}
         />
         {errors.abstract && <p className="text-red-500 text-sm mt-1">{errors.abstract}</p>}
         <p className="text-sm text-gray-500 mt-1">
-          {submissionData.abstract.length}/300 words
+          {submissionData.abstract.length}/100 characters minimum
         </p>
       </div>
 
@@ -221,7 +270,7 @@ export default function SubmitPage() {
           id="keywords"
           value={submissionData.keywords}
           onChange={(e) => setSubmissionData(prev => ({ ...prev, keywords: e.target.value }))}
-          placeholder="Enter keywords separated by commas"
+          placeholder="Enter at least 3 keywords separated by commas"
           className={errors.keywords ? "border-red-500" : ""}
         />
         {errors.keywords && <p className="text-red-500 text-sm mt-1">{errors.keywords}</p>}
@@ -337,7 +386,7 @@ export default function SubmitPage() {
   const renderStep3 = () => (
     <div className="space-y-6">
       <div>
-        <Label htmlFor="manuscript">Manuscript File *</Label>
+        <Label htmlFor="manuscript">Manuscript File (Optional)</Label>
         <div className="mt-2">
           <Input
             id="manuscript"
@@ -352,7 +401,7 @@ export default function SubmitPage() {
       </div>
 
       <div>
-        <Label htmlFor="coverLetter">Cover Letter *</Label>
+        <Label htmlFor="coverLetter">Cover Letter (Optional)</Label>
         <div className="mt-2">
           <Input
             id="coverLetter"
@@ -543,20 +592,24 @@ export default function SubmitPage() {
             <Button
               onClick={prevStep}
               variant="outline"
-              disabled={currentStep === 1}
+              disabled={currentStep === 1 || loading}
             >
               Previous
             </Button>
 
             <div className="flex gap-2">
               {currentStep < 4 ? (
-                <Button onClick={nextStep}>
+                <Button onClick={nextStep} disabled={loading}>
                   Next
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               ) : (
-                <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
-                  Submit Manuscript
+                <Button 
+                  onClick={handleSubmit} 
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={loading}
+                >
+                  {loading ? "Submitting..." : "Submit Manuscript"}
                 </Button>
               )}
             </div>

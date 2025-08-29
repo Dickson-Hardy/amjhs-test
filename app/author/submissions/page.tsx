@@ -42,45 +42,34 @@ export default function SubmissionsPage() {
   const [categoryFilter, setCategoryFilter] = useState("all")
 
   useEffect(() => {
-    fetchSubmissions()
-  }, [])
+    if (session?.user?.id) {
+      fetchSubmissions()
+    }
+  }, [session?.user?.id])
 
   const fetchSubmissions = async () => {
     try {
-      // Mock data for now - replace with actual API call
-      const mockSubmissions: Submission[] = [
-        {
-          id: "1",
-          title: "Impact of Telemedicine on Rural Healthcare Access",
-          status: "under_review",
-          submittedAt: "2024-01-15",
-          lastUpdated: "2024-01-20",
-          category: "Original Research",
-          authors: ["Dr. Sarah Johnson", "Dr. Michael Chen"],
-          manuscriptFile: "manuscript_v1.docx"
-        },
-        {
-          id: "2",
-          title: "Machine Learning in Medical Diagnosis: A Systematic Review",
-          status: "revision_requested",
-          submittedAt: "2024-01-10",
-          lastUpdated: "2024-01-18",
-          category: "Review Article",
-          authors: ["Dr. Emily Rodriguez", "Dr. David Kim"],
-          manuscriptFile: "ml_review_v2.docx"
-        },
-        {
-          id: "3",
-          title: "Novel Approach to Diabetes Management in Elderly Patients",
-          status: "accepted",
-          submittedAt: "2023-12-20",
-          lastUpdated: "2024-01-05",
-          category: "Original Research",
-          authors: ["Dr. Robert Smith", "Dr. Lisa Wang"],
-          manuscriptFile: "diabetes_management.docx"
+      const userId = session?.user?.id
+      if (!userId) return
+
+      const response = await fetch(`/api/users/${userId}/submissions`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          // Transform API data to match component interface
+          const transformedSubmissions: Submission[] = data.submissions.map((sub: any) => ({
+            id: sub.id,
+            title: sub.title || 'Untitled',
+            status: sub.status || 'submitted',
+            submittedAt: sub.submittedDate || sub.createdAt || new Date().toISOString(),
+            lastUpdated: sub.lastUpdate || sub.createdAt || new Date().toISOString(),
+            category: sub.category || 'Original Research',
+            authors: [session?.user?.name || 'Author'], // Single author for now
+            manuscriptFile: 'manuscript.docx' // Placeholder
+          }))
+          setSubmissions(transformedSubmissions)
         }
-      ]
-      setSubmissions(mockSubmissions)
+      }
     } catch (error) {
       console.error("Error fetching submissions:", error)
     } finally {
