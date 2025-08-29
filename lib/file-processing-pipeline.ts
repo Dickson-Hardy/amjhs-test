@@ -1,5 +1,23 @@
 import { logError, logInfo } from "./logger"
 import { v4 as uuidv4 } from "uuid"
+import { db } from "./db"
+import { userDocuments } from "./db/schema"
+import { eq } from "drizzle-orm"
+
+// Custom error classes for file processing
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ValidationError'
+  }
+}
+
+export class ProcessingError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProcessingError'
+  }
+}
 
 export interface FileProcessingResult {
   success: boolean
@@ -380,8 +398,26 @@ export class FileProcessingPipeline {
       
       logInfo("Storing processing metadata", { fileId, metadata });
       
-      // In a real implementation, this would update the userDocuments table
-      // with the processing metadata, or store in a separate metadata table
+      // Update the userDocuments table with processing metadata
+      try {
+        await db
+          .update(userDocuments)
+          .set({
+            metadata: {
+              ...metadata,
+              processedAt: new Date().toISOString(),
+              processingVersion: '1.0'
+            },
+            updatedAt: new Date()
+          })
+          .where(eq(userDocuments.fileId, fileId));
+        
+        logInfo("Successfully updated file metadata in database", { fileId });
+      } catch (dbError) {
+        logError("Failed to update file metadata in database", dbError as Error, { fileId });
+        // Continue with processing even if metadata update fails
+      }
+      
       const processingData = {
         fileId,
         metadata,

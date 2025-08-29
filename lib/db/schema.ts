@@ -634,3 +634,59 @@ export const communication_templates = pgTable("communication_templates", {
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
 })
+
+export const reviewerApplications = pgTable("reviewer_applications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id),
+  email: text("email").notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  institution: text("institution").notNull(),
+  currentPosition: text("current_position").notNull(),
+  primarySpecialty: text("primary_specialty").notNull(),
+  secondarySpecialties: jsonb("secondary_specialties").$type<string[]>(),
+  yearsExperience: integer("years_experience").notNull(),
+  researchAreas: jsonb("research_areas").$type<string[]>(),
+  reviewFrequency: text("review_frequency").notNull(),
+  previousJournals: jsonb("previous_journals").$type<string[]>(),
+  linkedinUrl: text("linkedin_url"),
+  publications: text("publications"),
+  cvFile: text("cv_file"),
+  status: text("status").notNull().default("pending"), // pending, approved, rejected
+  reviewedBy: uuid("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+})
+
+export const tasks = pgTable("tasks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  type: text("type").notNull(), // review_assignment, editorial_check, etc.
+  status: text("status").notNull().default("pending"), // pending, in_progress, completed, cancelled
+  priority: text("priority").notNull().default("medium"), // low, medium, high, urgent
+  assignedTo: uuid("assigned_to").references(() => users.id),
+  createdBy: uuid("created_by").references(() => users.id),
+  relatedId: uuid("related_id"), // article_id, submission_id, etc.
+  relatedType: text("related_type"), // article, submission, review, etc.
+  dueDate: timestamp("due_date"),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+})
+
+export const emailTemplates = pgTable("email_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull().unique(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  type: text("type").notNull(), // notification, newsletter, review_request, etc.
+  variables: jsonb("variables").$type<string[]>(), // Available variables for template
+  isActive: boolean("is_active").default(true),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+})

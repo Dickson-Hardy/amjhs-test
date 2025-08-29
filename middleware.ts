@@ -15,11 +15,31 @@ export default withAuth(
           return NextResponse.redirect(loginUrl)
         }
         
-        // If authenticated but not the right role, redirect to general dashboard
+        // If authenticated but not the right role, redirect to appropriate dashboard
         const userRole = req.nextauth.token.role
         if (userRole !== "editorial-assistant" && 
             !["admin", "editor-in-chief", "managing-editor"].includes(userRole)) {
-          return NextResponse.redirect(new URL("/dashboard", req.url))
+          // Use role-based redirect instead of generic dashboard
+          const redirectTo = userRole === "admin" ? "/admin" : "/dashboard"
+          return NextResponse.redirect(new URL(redirectTo, req.url))
+        }
+      }
+
+      // Special handling for admin routes
+      if (req.nextUrl.pathname.startsWith("/admin") && 
+          req.nextUrl.pathname !== "/auth/login") {
+        // If user is not authenticated, redirect to login
+        if (!req.nextauth.token) {
+          const loginUrl = new URL("/auth/login", req.url)
+          loginUrl.searchParams.set("callbackUrl", req.url)
+          return NextResponse.redirect(loginUrl)
+        }
+        
+        // If authenticated but not admin role, redirect to appropriate dashboard
+        const userRole = req.nextauth.token.role
+        if (userRole !== "admin") {
+          const redirectTo = userRole === "editorial-assistant" ? "/editorial-assistant" : "/dashboard"
+          return NextResponse.redirect(new URL(redirectTo, req.url))
         }
       }
 
@@ -145,46 +165,6 @@ export default withAuth(
         // Admin routes - highest level access
         if (pathname.startsWith("/admin")) {
           return userRole === "admin"
-        }
-
-        // Editor-in-Chief routes
-        if (pathname.startsWith("/editor-in-chief")) {
-          return userRole === "editor-in-chief" || userRole === "admin"
-        }
-
-        // Managing Editor routes
-        if (pathname.startsWith("/managing-editor")) {
-          return ["managing-editor", "editor-in-chief", "admin"].includes(userRole || "")
-        }
-
-        // Section Editor routes
-        if (pathname.startsWith("/section-editor")) {
-          return ["section-editor", "managing-editor", "editor-in-chief", "admin"].includes(userRole || "")
-        }
-
-        // Guest Editor routes
-        if (pathname.startsWith("/guest-editor")) {
-          return ["guest-editor", "section-editor", "managing-editor", "editor-in-chief", "admin"].includes(userRole || "")
-        }
-
-        // Production Editor routes
-        if (pathname.startsWith("/production-editor")) {
-          return ["production-editor", "managing-editor", "editor-in-chief", "admin"].includes(userRole || "")
-        }
-
-        // Associate Editor routes
-        if (pathname.startsWith("/editor")) {
-          return ["editor", "section-editor", "managing-editor", "editor-in-chief", "admin"].includes(userRole || "")
-        }
-
-        // Editorial Assistant routes
-        if (pathname.startsWith("/editorial-assistant")) {
-          return userRole === "editorial-assistant" || ["admin", "editor-in-chief", "managing-editor"].includes(userRole || "")
-        }
-
-        // Reviewer routes
-        if (pathname.startsWith("/reviewer")) {
-          return ["reviewer", "editor", "section-editor", "managing-editor", "editor-in-chief", "admin"].includes(userRole || "")
         }
 
         // General dashboard and submission routes

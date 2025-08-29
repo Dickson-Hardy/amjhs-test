@@ -16,7 +16,7 @@ export default function SubmissionGuidelinesPage() {
   }
 
   const handleDownloadResource = (resourceName: string) => {
-    // In a real implementation, these would link to actual downloadable files
+    // Download links to actual resource files
     const downloadLinks = {
       'Author Checklist': '/downloads/author-checklist.pdf',
       'Manuscript Template': '/downloads/manuscript-template.docx',
@@ -26,6 +26,15 @@ export default function SubmissionGuidelinesPage() {
     
     const link = downloadLinks[resourceName as keyof typeof downloadLinks]
     if (link) {
+      // Create download link and trigger download
+      const downloadLink = document.createElement('a')
+      downloadLink.href = link
+      downloadLink.download = resourceName.toLowerCase().replace(/\s+/g, '-')
+      downloadLink.target = '_blank'
+      document.body.appendChild(downloadLink)
+      downloadLink.click()
+      document.body.removeChild(downloadLink)
+      
       toast({
         title: "Download Starting",
         description: `Download would start for: ${resourceName}`,

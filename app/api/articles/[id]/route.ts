@@ -10,10 +10,18 @@ import { logError } from "@/lib/logger"
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: articleId } = await params
   try {
+    const session = await getServerSession(authOptions)
 
     // Try to get from cache first
     const cached = await CacheManager.getCachedArticle(articleId)
     if (cached) {
+      // Check authorization for cached content
+      if (cached.authorId && session?.user?.id !== cached.authorId && !["admin", "editor"].includes(session?.user?.role || "")) {
+        // Remove sensitive data for non-authorized users
+        const publicData = { ...cached }
+        delete publicData.files
+        return NextResponse.json({ success: true, article: publicData })
+      }
       return NextResponse.json({ success: true, article: cached })
     }
 
@@ -34,6 +42,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         submittedDate: articles.submittedDate,
         views: articles.views,
         downloads: articles.downloads,
+        files: articles.files,
+        coAuthors: articles.coAuthors,
+        authorId: articles.authorId,
         authorName: users.name,
         authorEmail: users.email,
         authorAffiliation: users.affiliation,
@@ -49,6 +60,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!article) {
       return NextResponse.json({ success: false, error: "Article not found" }, { status: 404 })
+    }
+
+    // Check authorization for file access
+    const isAuthorized = session?.user?.id === article.authorId || 
+                        ["admin", "editor"].includes(session?.user?.role || "")
+    
+    // Remove sensitive data for non-authorized users
+    if (!isAuthorized) {
+      const { files, ...publicArticle } = article
+      return NextResponse.json({ success: true, article: publicArticle })
     }
 
     // Increment view count

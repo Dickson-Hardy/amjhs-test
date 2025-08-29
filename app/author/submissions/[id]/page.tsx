@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { RouteGuard } from "@/components/route-guard"
 import AuthorLayout from "@/components/layouts/author-layout"
@@ -46,11 +46,13 @@ interface Review {
 
 export default function SubmissionDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const { data: session } = useSession()
   const submissionId = params.id as string
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     // Fetch submission details
@@ -96,12 +98,84 @@ export default function SubmissionDetailPage() {
 
   const fetchReviews = async () => {
     try {
-      // For now, return empty reviews since we don't have a reviews API endpoint
-      // In a real implementation, you would call something like:
-      // const response = await fetch(`/api/submissions/${submissionId}/reviews`)
-      setReviews([])
+      // Fetch reviews for this submission from the database
+      const response = await fetch(`/api/articles/${submissionId}/reviews`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setReviews(data.reviews || [])
+        }
+      } else {
+        console.log("No reviews found or endpoint not available")
+        setReviews([])
+      }
     } catch (error) {
       console.error("Error fetching reviews:", error)
+      setReviews([])
+    }
+  }
+
+  // Button handler functions
+  const handleEditSubmission = () => {
+    // Check if submission can be edited (only certain statuses allow editing)
+    const editableStatuses = ['submitted', 'revision_requested']
+    if (submission && editableStatuses.includes(submission.status)) {
+      // Navigate to edit page - we can reuse the submit page with edit mode
+      router.push(`/author/submit?edit=${submissionId}`)
+    } else {
+      alert(`Submissions with status "${submission?.status}" cannot be edited. Contact the editor if you need to make changes.`)
+    }
+  }
+
+  const handleContactEditor = () => {
+    // Navigate to messages page to start a conversation with the editor
+    const subject = encodeURIComponent(`Regarding submission: ${submission?.title || 'Manuscript'}`)
+    const submissionRef = encodeURIComponent(submissionId)
+    router.push(`/author/messages?new=true&type=editorial&submissionId=${submissionRef}&subject=${subject}`)
+  }
+
+  const handleDownloadAllFiles = async () => {
+    try {
+      if (!submission || !session?.user?.id) return
+      
+      setDownloading(true)
+      
+      // Fetch the full article data including files
+      const response = await fetch(`/api/articles/${submissionId}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.article?.files && data.article.files.length > 0) {
+          // Download each file
+          let downloadCount = 0
+          data.article.files.forEach((file: any, index: number) => {
+            setTimeout(() => {
+              const link = document.createElement('a')
+              link.href = file.url
+              link.download = file.name || `submission-file-${index + 1}`
+              link.target = '_blank'
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+              downloadCount++
+              
+              // Update user when all downloads are initiated
+              if (downloadCount === data.article.files.length) {
+                alert(`Initiated download of ${data.article.files.length} files`)
+                setDownloading(false)
+              }
+            }, index * 500) // Stagger downloads by 500ms
+          })
+        } else {
+          alert("No files found for this submission")
+          setDownloading(false)
+        }
+      } else {
+        throw new Error("Failed to fetch submission files")
+      }
+    } catch (error) {
+      console.error("Error downloading files:", error)
+      alert("Failed to download files. Please try again.")
+      setDownloading(false)
     }
   }
 
@@ -382,17 +456,19 @@ export default function SubmissionDetailPage() {
 
       {/* Action Buttons */}
       <div className="flex justify-center gap-4 mt-8">
-        <Button variant="outline">
-          <Edit className="h-4 w-4 mr-2" />
-          Edit Submission
-        </Button>
-        <Button variant="outline">
+        {submission?.status && ['submitted', 'revision_requested'].includes(submission.status) && (
+          <Button variant="outline" onClick={handleEditSubmission}>
+            <Edit className="h-4 w-4 mr-2" />
+            {submission.status === 'revision_requested' ? 'Submit Revision' : 'Edit Submission'}
+          </Button>
+        )}
+        <Button variant="outline" onClick={handleContactEditor}>
           <MessageSquare className="h-4 w-4 mr-2" />
           Contact Editor
         </Button>
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleDownloadAllFiles} disabled={downloading}>
           <Download className="h-4 w-4 mr-2" />
-          Download All Files
+          {downloading ? "Downloading..." : "Download All Files"}
         </Button>
       </div>
         </div>

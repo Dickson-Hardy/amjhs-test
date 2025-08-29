@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { userApplications } from "@/lib/db/schema"
+import { userApplications, reviewerApplications, notifications } from "@/lib/db/schema"
+import { sendEmail } from "@/lib/email-hybrid"
 
 export async function POST(req: NextRequest) {
   try {
@@ -92,88 +93,69 @@ async function sendNotificationToEditorialTeam(application: unknown) {
   await new Promise(resolve => setTimeout(resolve, 100))
 }
 
-async function saveReviewerApplication(userEmail: string, formData: unknown) {
+async function saveReviewerApplication(userEmail: string, formData: any) {
   try {
-    // In a real implementation, save to your database:
-    // const application = await prisma.reviewerApplication.create({
-    //   data: {
-    //     userId: userEmail,
-    //     firstName: formData.firstName,
-    //     lastName: formData.lastName,
-    //     email: formData.email,
-    //     institution: formData.institution,
-    //     currentPosition: formData.currentPosition,
-    //     primarySpecialty: formData.primarySpecialty,
-    //     secondarySpecialties: formData.secondarySpecialties,
-    //     yearsExperience: formData.yearsExperience,
-    //     researchAreas: formData.researchAreas,
-    //     reviewFrequency: formData.reviewFrequency,
-    //     languageProficiency: formData.languageProficiency,
-    //     conflictInstitutions: formData.conflictInstitutions,
-    //     status: 'pending',
-    //     submittedDate: new Date(),
-    //   }
-    // })
-    
-    // Save application to database
-    const [application] = await db.insert(userApplications).values({
-      userId: (session.user as unknown).id || userEmail,
-      requestedRole: 'reviewer',
-      currentRole: 'author',
-      status: 'pending',
-      applicationData: formData,
+    // Save to the reviewerApplications table
+    const [application] = await db.insert(reviewerApplications).values({
+      email: formData.email,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      institution: formData.institution,
+      currentPosition: formData.currentPosition,
+      primarySpecialty: formData.primarySpecialty,
+      secondarySpecialties: formData.secondarySpecialties || [],
+      yearsExperience: parseInt(formData.yearsExperience),
+      researchAreas: formData.researchAreas || [],
+      reviewFrequency: formData.reviewFrequency,
+      previousJournals: formData.previousJournals || [],
+      linkedinUrl: formData.linkedinUrl,
+      publications: formData.publications,
+      cvFile: formData.cvFile,
+      status: "pending",
       submittedAt: new Date()
     }).returning()
 
-    return {
-      id: application.id,
-      userId: application.userId,
-      status: application.status,
-      submittedDate: application.submittedAt.toISOString(),
-      ...formData
-    }
+    return { success: true, applicationId: application.id }
   } catch (error) {
-    logger.error('Error saving reviewer application:', error)
-    throw new AppError('Failed to save application to database')
+    console.error('Error saving reviewer application:', error)
+    return { success: false, error: 'Failed to save application' }
   }
 }
 
-async function createAdminNotification(application: unknown) {
+async function createAdminNotification(application: any) {
   try {
-    // In a real implementation, create admin notification:
-    // await prisma.adminNotification.create({
-    //   data: {
-    //     type: 'REVIEWER_APPLICATION',
-    //     title: `New Reviewer Application from ${application.firstName} ${application.lastName}`,
-    //     message: `Application from ${application.institution} - ${application.primarySpecialty} specialist`,
-    //     relatedId: application.id,
-    //     priority: 'normal',
-    //     isRead: false,
-    //     createdAt: new Date()
-    //   }
-    // })
+    // Create admin notification for new reviewer application
+    await db.insert(notifications).values({
+      userId: null, // System notification - will be handled by admin role
+      title: `New Reviewer Application from ${application.firstName} ${application.lastName}`,
+      message: `Application from ${application.institution} - ${application.primarySpecialty} specialist`,
+      type: 'reviewer_application',
+      relatedId: application.id,
+      isRead: false,
+    })
     
-    logger.error(`Admin notification created for application ${application.id}`)
+    console.log(`Admin notification created for application ${application.id}`)
   } catch (error) {
-    logger.error('Error creating admin notification:', error)
+    console.error('Error creating admin notification:', error)
   }
 }
 
-async function logApplicationSubmission(application: unknown) {
+async function logApplicationSubmission(application: any) {
   try {
-    // In a real implementation, log the action:
-    // await prisma.applicationLog.create({
-    //   data: {
-    //     applicationId: application.id,
-    //     action: 'SUBMITTED',
-    //     performedBy: application.userId,
-    //     timestamp: new Date(),
-    //     details: `Application submitted by ${application.firstName} ${application.lastName}`
-    //   }
-    // })
+    // Log the application submission
+    console.log(`Reviewer application submitted: ${application.id}`, {
+      applicationId: application.id,
+      action: 'SUBMITTED',
+      applicantName: `${application.firstName} ${application.lastName}`,
+      institution: application.institution,
+      timestamp: new Date().toISOString()
+    })
     
-    logger.error(`Application submission logged for ${application.id}`)
+    // In a production system, you would save this to an audit log table
+    // await db.insert(applicationLogs).values({...})
+    
+    console.log(`Application submission logged for ${application.id}`)
   } catch (error) {
-    logger.error('Error logging application submission:', error)
+    console.error('Error logging application submission:', error)
   }
 }

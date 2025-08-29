@@ -1,4 +1,51 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { db } from "@/lib/db"
+import { articles } from "@/lib/db/schema"
+import { eq, sql } from "drizzle-orm"
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const articleId = params.id
+
+    // Increment download count
+    await db
+      .update(articles)
+      .set({ downloads: sql`${articles.downloads} + 1` })
+      .where(eq(articles.id, articleId))
+
+    // Get the article files from the database
+    const [articleData] = await db
+      .select({ files: articles.files })
+      .from(articles)
+      .where(eq(articles.id, articleId))
+
+    if (!articleData?.files || articleData.files.length === 0) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "No files available for download" 
+      }, { status: 404 })
+    }
+
+    // Return the first file (main manuscript) for download
+    const mainFile = articleData.files[0]
+    
+    return NextResponse.json({
+      success: true,
+      downloadUrl: mainFile.url,
+      filename: mainFile.name,
+      fileType: mainFile.type,
+    })
+  } catch (error) {rver"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { db } from "@/lib/db"

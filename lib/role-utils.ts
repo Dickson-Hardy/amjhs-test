@@ -6,7 +6,7 @@ import { Session } from "next-auth"
 export function getRoleBasedDashboard(role: string | undefined): string {
   switch (role) {
     case "admin":
-      return "/admin/dashboard"
+      return "/admin"
     case "editor-in-chief":
     case "managing-editor":
     case "section-editor":
@@ -21,7 +21,7 @@ export function getRoleBasedDashboard(role: string | undefined): string {
     case "author":
     case "user":
     default:
-      return "/author/dashboard"
+      return "/dashboard"
   }
 }
 

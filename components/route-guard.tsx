@@ -28,8 +28,10 @@ export function RouteGuard({
     const currentPath = window.location.pathname
 
     // If not authenticated and trying to access protected route
-    if (!session && (currentPath.startsWith("/dashboard") || currentPath.startsWith("/admin") || currentPath.startsWith("/submit"))) {
-      router.push("/auth/login")
+    if (!session && (currentPath.startsWith("/dashboard") || currentPath.startsWith("/admin") || currentPath.startsWith("/submit") || currentPath.startsWith("/editorial-assistant"))) {
+      // Use appropriate login page based on route
+      const loginUrl = currentPath.startsWith("/editorial-assistant") ? "/editorial-assistant/login" : "/auth/login"
+      router.push(loginUrl)
       return
     }
 
@@ -70,7 +72,7 @@ export function RouteGuard({
 
   // If not authenticated and trying to access protected route, don't render children
   const currentPath = typeof window !== "undefined" ? window.location.pathname : ""
-  if (!session && (currentPath.startsWith("/dashboard") || currentPath.startsWith("/admin") || currentPath.startsWith("/submit"))) {
+  if (!session && (currentPath.startsWith("/dashboard") || currentPath.startsWith("/admin") || currentPath.startsWith("/submit") || currentPath.startsWith("/editorial-assistant"))) {
     return null
   }
 
