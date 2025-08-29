@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { RouteGuard } from "@/components/route-guard"
+import AuthorLayout from "@/components/layouts/author-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -137,27 +139,37 @@ export default function SubmissionDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
+      <RouteGuard allowedRoles={["author"]}>
+        <AuthorLayout>
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+          </div>
+        </AuthorLayout>
+      </RouteGuard>
     )
   }
 
   if (!submission) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Submission Not Found</h1>
-          <p className="text-gray-600">The requested submission could not be found.</p>
-        </div>
-      </div>
+      <RouteGuard allowedRoles={["author"]}>
+        <AuthorLayout>
+          <div className="container mx-auto px-4 py-8">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-gray-900 mb-4">Submission Not Found</h1>
+              <p className="text-gray-600">The requested submission could not be found.</p>
+            </div>
+          </div>
+        </AuthorLayout>
+      </RouteGuard>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
+    <RouteGuard allowedRoles={["author"]}>
+      <AuthorLayout>
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
+            <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               {submission.title}
@@ -383,6 +395,8 @@ export default function SubmissionDetailPage() {
           Download All Files
         </Button>
       </div>
-    </div>
+        </div>
+      </AuthorLayout>
+    </RouteGuard>
   )
 }
