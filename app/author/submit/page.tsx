@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { 
   FileText, 
   Upload, 
@@ -29,10 +30,19 @@ interface Author {
   isCorresponding: boolean
 }
 
+interface UploadedFile {
+  id: string
+  name: string
+  url: string
+  type: string
+  fileId: string
+}
+
 export default function SubmitPage() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [submissionData, setSubmissionData] = useState({
     title: "",
     abstract: "",
@@ -42,6 +52,7 @@ export default function SubmitPage() {
     manuscriptFile: null as File | null,
     coverLetter: null as File | null,
     supplementaryFiles: [] as File[],
+    uploadedFiles: [] as UploadedFile[],
     ethicalApproval: false,
     conflictOfInterest: false,
     dataAvailability: false,
@@ -90,20 +101,95 @@ export default function SubmitPage() {
     }))
   }
 
-  const handleFileUpload = (field: string, file: File | null) => {
-    setSubmissionData(prev => ({
-      ...prev,
-      [field]: file
-    }))
+  const uploadFile = async (file: File, category: string): Promise<UploadedFile | null> => {
+    try {
+      setUploading(true)
+      
+      // Convert file to base64
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.readAsDataURL(file)
+      })
+
+      const uploadPayload = {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        fileData: base64,
+        category,
+        description: `${category} file for submission`
+      }
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(uploadPayload)
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        return {
+          id: result.file.id,
+          name: result.file.originalName,
+          url: result.file.url,
+          type: category,
+          fileId: result.file.id
+        }
+      } else {
+        throw new Error(result.error || 'Upload failed')
+      }
+    } catch (error) {
+      console.error(`Error uploading ${category}:`, error)
+      alert(`Failed to upload ${category}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return null
+    } finally {
+      setUploading(false)
+    }
   }
 
-  const handleMultipleFileUpload = (files: FileList | null) => {
-    if (files) {
-      const fileArray = Array.from(files)
+  const handleFileUpload = async (field: string, file: File | null) => {
+    if (!file) {
+      setSubmissionData(prev => ({ ...prev, [field]: null }))
+      return
+    }
+
+    const category = field === 'manuscriptFile' ? 'manuscript' : 'cover_letter'
+    const uploadedFile = await uploadFile(file, category)
+    
+    if (uploadedFile) {
       setSubmissionData(prev => ({
         ...prev,
-        supplementaryFiles: [...prev.supplementaryFiles, ...fileArray]
+        [field]: file,
+        uploadedFiles: [...prev.uploadedFiles.filter(f => f.type !== category), uploadedFile]
       }))
+    }
+  }
+
+  const handleMultipleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+
+    const fileArray = Array.from(files)
+    const uploadPromises = fileArray.map(file => uploadFile(file, 'supplementary'))
+    
+    try {
+      setUploading(true)
+      const uploadedFiles = await Promise.all(uploadPromises)
+      const successfulUploads = uploadedFiles.filter(file => file !== null) as UploadedFile[]
+      
+      setSubmissionData(prev => ({
+        ...prev,
+        supplementaryFiles: [...prev.supplementaryFiles, ...fileArray],
+        uploadedFiles: [...prev.uploadedFiles, ...successfulUploads]
+      }))
+    } catch (error) {
+      console.error('Error uploading supplementary files:', error)
+      alert('Some files failed to upload. Please try again.')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -186,6 +272,12 @@ export default function SubmitPage() {
             email: author.email,
             affiliation: author.affiliation,
             isCorrespondingAuthor: author.isCorresponding
+          })),
+          files: submissionData.uploadedFiles.map(file => ({
+            url: file.url,
+            type: file.type,
+            name: file.name,
+            fileId: file.fileId
           })),
           funding: submissionData.funding,
           ethicalApproval: submissionData.ethicalApproval,
@@ -385,6 +477,14 @@ export default function SubmitPage() {
 
   const renderStep3 = () => (
     <div className="space-y-6">
+      {uploading && (
+        <Alert>
+          <AlertDescription>
+            Uploading files... Please wait.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <div>
         <Label htmlFor="manuscript">Manuscript File (Optional)</Label>
         <div className="mt-2">
@@ -394,10 +494,14 @@ export default function SubmitPage() {
             accept=".doc,.docx,.pdf"
             onChange={(e) => handleFileUpload("manuscriptFile", e.target.files?.[0] || null)}
             className={errors.manuscriptFile ? "border-red-500" : ""}
+            disabled={uploading}
           />
         </div>
         {errors.manuscriptFile && <p className="text-red-500 text-sm mt-1">{errors.manuscriptFile}</p>}
         <p className="text-sm text-gray-500 mt-1">Accepted formats: .doc, .docx, .pdf</p>
+        {submissionData.manuscriptFile && (
+          <p className="text-sm text-green-600 mt-1">✓ {submissionData.manuscriptFile.name} uploaded</p>
+        )}
       </div>
 
       <div>
@@ -409,10 +513,14 @@ export default function SubmitPage() {
             accept=".doc,.docx,.pdf"
             onChange={(e) => handleFileUpload("coverLetter", e.target.files?.[0] || null)}
             className={errors.coverLetter ? "border-red-500" : ""}
+            disabled={uploading}
           />
         </div>
         {errors.coverLetter && <p className="text-red-500 text-sm mt-1">{errors.coverLetter}</p>}
         <p className="text-sm text-gray-500 mt-1">Include a cover letter explaining your submission</p>
+        {submissionData.coverLetter && (
+          <p className="text-sm text-green-600 mt-1">✓ {submissionData.coverLetter.name} uploaded</p>
+        )}
       </div>
 
       <div>
@@ -424,21 +532,22 @@ export default function SubmitPage() {
             multiple
             accept=".doc,.docx,.pdf,.xls,.xlsx,.zip"
             onChange={(e) => handleMultipleFileUpload(e.target.files)}
+            disabled={uploading}
           />
         </div>
         <p className="text-sm text-gray-500 mt-1">Optional: Additional files, figures, data sets, etc.</p>
         
-        {submissionData.supplementaryFiles.length > 0 && (
+        {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').length > 0 && (
           <div className="mt-4">
             <h4 className="font-medium mb-2">Uploaded Files:</h4>
             <div className="space-y-2">
-              {submissionData.supplementaryFiles.map((file, index) => (
+              {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').map((file, index) => (
                 <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <span className="text-sm">{file.name}</span>
+                  <span className="text-sm">✓ {file.name}</span>
                   <Button
                     onClick={() => setSubmissionData(prev => ({
                       ...prev,
-                      supplementaryFiles: prev.supplementaryFiles.filter((_, i) => i !== index)
+                      uploadedFiles: prev.uploadedFiles.filter((_, i) => i !== index)
                     }))}
                     variant="outline"
                     size="sm"
@@ -592,14 +701,14 @@ export default function SubmitPage() {
             <Button
               onClick={prevStep}
               variant="outline"
-              disabled={currentStep === 1 || loading}
+              disabled={currentStep === 1 || loading || uploading}
             >
               Previous
             </Button>
 
             <div className="flex gap-2">
               {currentStep < 4 ? (
-                <Button onClick={nextStep} disabled={loading}>
+                <Button onClick={nextStep} disabled={loading || uploading}>
                   Next
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
@@ -607,9 +716,9 @@ export default function SubmitPage() {
                 <Button 
                   onClick={handleSubmit} 
                   className="bg-green-600 hover:bg-green-700"
-                  disabled={loading}
+                  disabled={loading || uploading}
                 >
-                  {loading ? "Submitting..." : "Submit Manuscript"}
+                  {loading ? "Submitting..." : uploading ? "Uploading Files..." : "Submit Manuscript"}
                 </Button>
               )}
             </div>
