@@ -2011,3 +2011,38 @@ params: Backup Schedule Created,backup-system,{"details":"Scheduled Weekly Full 
 2025-08-29T10:19:10.016Z [INFO]: 📅 Active backup schedules: 2 | {"service":"amhsj","environment":"production","version":"0.1.0"}
 2025-08-29T10:19:10.016Z [INFO]:    - daily-database: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
 2025-08-29T10:19:10.017Z [INFO]:    - weekly-full: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.040Z [INFO]: ✅ Scheduled: Daily Database Backup - 0 2 * * * | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.062Z [INFO]: ✅ Scheduled: Daily Database Backup - 0 2 * * * | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.090Z [INFO]: ✅ Scheduled: Weekly Full Backup - 0 1 * * 0 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.093Z [INFO]: 🔄 Initializing backup scheduler for production... | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.095Z [INFO]: ✅ Backup scheduler initialized | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.096Z [INFO]: 📅 Active backup schedules: 2 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.096Z [INFO]:    - daily-database: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.096Z [INFO]:    - weekly-full: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:08.498Z [INFO]: ✅ Scheduled: Daily Database Backup - 0 2 * * * | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.097Z [INFO]: ✅ Scheduled: Weekly Full Backup - 0 1 * * 0 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.100Z [INFO]: 🔄 Initializing backup scheduler for production... | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.101Z [INFO]: ✅ Backup scheduler initialized | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.101Z [INFO]: 📅 Active backup schedules: 2 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.101Z [INFO]:    - daily-database: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:09.102Z [INFO]:    - weekly-full: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:08.548Z [INFO]: ✅ Scheduled: Weekly Full Backup - 0 1 * * 0 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:08.555Z [INFO]: 🔄 Initializing backup scheduler for production... | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:08.556Z [INFO]: ✅ Backup scheduler initialized | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:08.557Z [INFO]: 📅 Active backup schedules: 2 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:08.557Z [INFO]:    - daily-database: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:08.557Z [INFO]:    - weekly-full: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:34.621Z [INFO]: ✅ Scheduled: Daily Database Backup - 0 2 * * * | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:34.663Z [INFO]: ✅ Scheduled: Weekly Full Backup - 0 1 * * 0 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:34.666Z [INFO]: 🔄 Initializing backup scheduler for production... | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:34.667Z [INFO]: ✅ Backup scheduler initialized | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:34.668Z [INFO]: 📅 Active backup schedules: 2 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:34.668Z [INFO]:    - daily-database: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:34.668Z [INFO]:    - weekly-full: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:38.564Z [INFO]: ✅ Scheduled: Daily Database Backup - 0 2 * * * | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:38.611Z [INFO]: ✅ Scheduled: Weekly Full Backup - 0 1 * * 0 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:38.617Z [INFO]: 🔄 Initializing backup scheduler for production... | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:38.618Z [INFO]: ✅ Backup scheduler initialized | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:38.618Z [INFO]: 📅 Active backup schedules: 2 | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:38.618Z [INFO]:    - daily-database: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
+2025-08-29T11:00:38.619Z [INFO]:    - weekly-full: Next run at Next execution time not available | {"service":"amhsj","environment":"production","version":"0.1.0"}
