@@ -274,26 +274,92 @@ export function RealTimeCollaborationEditor({
     if (!session?.user?.id) return
 
     try {
-      // In a real implementation, this would connect to your WebSocket server
-      // For now, we'll simulate the connection
+      // WebSocket connection for real-time collaboration
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'
+      const ws = new WebSocket(`${wsUrl}/collaborate/${sessionId}`)
       
-      logger.info('Initializing WebSocket connection for session:', sessionId)
+      ws.onopen = () => {
+        console.log('WebSocket connected for collaboration session:', sessionId)
+        // Send initial user info
+        ws.send(JSON.stringify({
+          type: 'user_join',
+          userId: session.user.id,
+          userName: session.user.name,
+          sessionId
+        }))
+      }
       
-      // Simulate WebSocket events for demo purposes
-      const mockWebSocket = {
-        send: (data: string) => {
-          logger.info('WebSocket send:', data)
-        },
-        close: () => {
-          logger.info('WebSocket closed')
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          handleWebSocketMessage(data)
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error)
         }
       }
       
-      wsRef.current = mockWebSocket as WebSocket
-
+      ws.onclose = () => {
+        console.log('WebSocket disconnected')
+        // Attempt to reconnect after 3 seconds
+        setTimeout(() => {
+          if (sessionId) {
+            initializeWebSocket(sessionId)
+          }
+        }, 3000)
+      }
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error)
+        // Fall back to polling for updates if WebSocket fails
+        startPollingFallback(sessionId)
+      }
+      
+      return ws
     } catch (error) {
-      logger.error('Failed to initialize WebSocket:', error)
-      setError('Real-time features may not work properly')
+      console.error('Failed to initialize WebSocket:', error)
+      // Fall back to polling for updates
+      startPollingFallback(sessionId)
+    }
+  }
+
+  const startPollingFallback = (sessionId: string) => {
+    // Fallback to polling when WebSocket is not available
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/collaboration/${sessionId}/updates`)
+        if (response.ok) {
+          const updates = await response.json()
+          updates.forEach((update: any) => handleWebSocketMessage(update))
+        }
+      } catch (error) {
+        console.error('Polling error:', error)
+      }
+    }, 2000) // Poll every 2 seconds
+
+    // Clean up polling on component unmount
+    return () => clearInterval(pollInterval)
+  }
+
+  const handleWebSocketMessage = (data: any) => {
+    switch (data.type) {
+      case 'user_join':
+        setCollaborators(prev => [...prev.filter(c => c.id !== data.userId), {
+          id: data.userId,
+          name: data.userName,
+          color: `hsl(${Math.random() * 360}, 70%, 50%)`
+        }])
+        break
+      case 'user_leave':
+        setCollaborators(prev => prev.filter(c => c.id !== data.userId))
+        break
+      case 'content_change':
+        setContent(data.content)
+        break
+      case 'comment_add':
+        setComments(prev => [...prev, data.comment])
+        break
+      default:
+        console.log('Unknown message type:', data.type)
     }
   }
 

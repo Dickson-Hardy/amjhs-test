@@ -3,6 +3,11 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { writeFile } from "fs/promises"
 import path from "path"
+import { db } from "@/lib/db"
+import { advertisements, adminLogs } from "@/lib/db/schema"
+import { uploadToCloudinary } from "@/lib/cloudinary"
+import { logError } from "@/lib/logger"
+import { v4 as uuidv4 } from "uuid"
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,28 +52,33 @@ export async function POST(request: NextRequest) {
     // Generate unique filename
     const timestamp = Date.now()
     const filename = `ad_${timestamp}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-    const uploadPath = path.join(process.cwd(), 'public', 'uploads', 'advertisements', filename)
 
-    // Save file
-    await writeFile(uploadPath, buffer)
+    // Upload to Cloudinary instead of local storage
+    const uploadResult = await uploadToCloudinary(
+      buffer,
+      filename,
+      'advertisements',
+      'image'
+    ) as any
     
     // Save advertisement details to database
     const advertisementData = await saveAdvertisementToDatabase({
       filename,
       originalName: file.name,
       size: file.size,
-      uploadedBy: session.user?.email || '',
-      filePath: `/uploads/advertisements/${filename}`
+      uploadedBy: session.user?.id || '',
+      filePath: uploadResult.secure_url
     })
     
     // Log the upload action
-    await logAdvertisementUpload(session.user?.email || '', advertisementData)
+    await logAdvertisementUpload(session.user?.id || '', session.user?.email || '', advertisementData)
     
     return NextResponse.json({
       success: true,
       message: "Advertisement uploaded successfully",
       filename,
-      url: `/uploads/advertisements/${filename}`
+      url: uploadResult.secure_url,
+      id: advertisementData.id
     })
     
   } catch (error) {
@@ -88,55 +98,38 @@ async function saveAdvertisementToDatabase(adData: {
   filePath: string;
 }) {
   try {
-    // In a real implementation, save to your database:
-    // const advertisement = await prisma.advertisement.create({
-    //   data: {
-    //     title: adData.originalName.replace(/\.[^/.]+$/, ""), // Remove extension
-    //     filename: adData.filename,
-    //     originalName: adData.originalName,
-    //     filePath: adData.filePath,
-    //     fileSize: adData.size,
-    //     uploadedBy: adData.uploadedBy,
-    //     position: 'sidebar-top', // Default position
-    //     isActive: false, // Requires admin activation
-    //     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-    //     createdAt: new Date(),
-    //     updatedAt: new Date()
-    //   }
-    // })
-    
-    const advertisement = {
-      id: Date.now().toString(),
-      ...adData,
-      uploadDate: new Date().toISOString(),
-      isActive: false,
-      position: 'sidebar-top',
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    }
-    
-    logger.error("Advertisement saved to database:", advertisement)
-    return advertisement
+    // Save advertisement to database
+    const advertisement = await db.insert(advertisements).values({
+      title: adData.originalName.replace(/\.[^/.]+$/, ""), // Remove extension
+      imageUrl: adData.filePath,
+      position: 'sidebar-top', // Default position
+      isActive: false, // Requires admin activation
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      createdBy: adData.uploadedBy,
+    }).returning()
+
+    return advertisement[0]
   } catch (error) {
-    logger.error('Error saving advertisement to database:', error)
-    throw new AppError('Failed to save advertisement to database')
+    logError(error as Error, { context: 'saveAdvertisementToDatabase' })
+    throw new Error('Failed to save advertisement to database')
   }
 }
 
-async function logAdvertisementUpload(adminEmail: string, adData: unknown) {
+async function logAdvertisementUpload(adminId: string, adminEmail: string, adData: any) {
   try {
-    // In a real implementation, log the action:
-    // await prisma.adminLog.create({
-    //   data: {
-    //     action: 'ADVERTISEMENT_UPLOADED',
-    //     performedBy: adminEmail,
-    //     details: `Uploaded advertisement: ${adData.originalName} (${adData.filename})`,
-    //     relatedId: adData.id,
-    //     timestamp: new Date()
-    //   }
-    // })
-    
-    logger.error(`Advertisement upload logged by ${adminEmail}: ${adData.filename}`)
+    // Log the action to admin logs table
+    await db.insert(adminLogs).values({
+      id: uuidv4(),
+      adminId: adminId,
+      adminEmail: adminEmail,
+      action: 'ADVERTISEMENT_UPLOADED',
+      resourceType: 'advertisement',
+      resourceId: adData.id,
+      details: `Uploaded advertisement: ${adData.title} (${adData.filename})`,
+      ipAddress: 'unknown', // Could extract from request headers
+      userAgent: 'unknown', // Could extract from request headers
+    })
   } catch (error) {
-    logger.error('Error logging advertisement upload:', error)
+    logError(error as Error, { context: 'logAdvertisementUpload' })
   }
 }

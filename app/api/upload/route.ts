@@ -244,3 +244,60 @@ export async function GET(request: NextRequest) {
     }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const fileId = searchParams.get("fileId")
+
+    if (!fileId) {
+      return NextResponse.json({ error: "File ID required" }, { status: 400 })
+    }
+
+    // Get file from database
+    const files = await db.select().from(userDocuments).where(eq(userDocuments.id, fileId))
+    
+    if (files.length === 0) {
+      return NextResponse.json({ error: "File not found" }, { status: 404 })
+    }
+
+    const file = files[0]
+
+    // Check if user owns the file or is admin
+    if (session.user.role !== "admin" && session.user.id !== file.userId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    try {
+      // Delete from Cloudinary if cloudinaryPublicId exists
+      if (file.cloudinaryPublicId) {
+        await deleteFromCloudinary(file.cloudinaryPublicId)
+      }
+      
+      // Delete from database
+      await db.delete(userDocuments).where(eq(userDocuments.id, fileId))
+
+      return NextResponse.json({
+        success: true,
+        message: "File deleted successfully"
+      })
+    } catch (error) {
+      logError(error as Error, { endpoint: "/api/upload", operation: "DELETE" })
+      return NextResponse.json({ 
+        error: "Failed to delete file",
+        details: error instanceof Error ? error.message : String(error)
+      }, { status: 500 })
+    }
+
+  } catch (error) {
+    logError(error as Error, { endpoint: "/api/upload", operation: "DELETE" })
+    return NextResponse.json({ 
+      error: "Internal server error" 
+    }, { status: 500 })
+  }
+}

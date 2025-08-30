@@ -1,32 +1,66 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { db } from "@/lib/db"
+import { specialIssues } from "@/lib/db/schema"
+import { eq } from "drizzle-orm"
+import { logError } from "@/lib/logger"
 
 export async function GET() {
   try {
-    // In a real implementation, this would fetch from database
-    const callForPapers = {
-      id: "1",
-      title: "Call for Papers: AI and ML in Healthcare",
-      description: "Special issue on artificial intelligence and machine learning applications in modern healthcare. We welcome original research, systematic reviews, and case studies that demonstrate innovative applications of AI/ML technologies in clinical practice, medical diagnosis, treatment planning, and patient care management.",
-      deadline: "2024-03-15",
-      status: 'published',
-      distributionChannels: [
-        "Journal Website", 
-        "Social Media", 
-        "Academic Networks", 
-        "Conference Announcements",
-        "Professional Societies",
-        "University Mailing Lists"
-      ],
-      responsesReceived: 18,
-      submissionGuidelines: "All submissions must include original research, proper ethical approvals, and adherence to CONSORT guidelines where applicable.",
-      expectedSubmissions: 25,
-      publishedDate: "2024-01-01",
-      promotionStrategy: "Multi-channel approach including social media, academic conferences, and professional networks"
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    return NextResponse.json(callForPapers)
+    // Fetch active call for papers from database
+    const callsForPapers = await db.select().from(specialIssues).where(eq(specialIssues.isActive, true))
+    
+    // If no active calls, return a default one
+    if (callsForPapers.length === 0) {
+      const defaultCall = {
+        id: "1",
+        title: "Call for Papers: AI and ML in Healthcare",
+        description: "Special issue on artificial intelligence and machine learning applications in modern healthcare. We welcome original research, systematic reviews, and case studies that demonstrate innovative applications of AI/ML technologies in clinical practice, medical diagnosis, treatment planning, and patient care management.",
+        deadline: "2024-03-15",
+        status: 'published',
+        distributionChannels: [
+          "Journal Website", 
+          "Social Media", 
+          "Academic Networks", 
+          "Conference Announcements",
+          "Professional Societies",
+          "University Mailing Lists"
+        ],
+        responsesReceived: 18,
+        submissionGuidelines: "All submissions must include original research, proper ethical approvals, and adherence to CONSORT guidelines where applicable.",
+        expectedSubmissions: 25,
+        publishedDate: "2024-01-01",
+        promotionStrategy: "Multi-channel approach including social media, academic conferences, and professional networks"
+      }
+
+      return NextResponse.json([defaultCall])
+    }
+
+    // Map database results to expected format
+    const formattedCalls = callsForPapers.map(issue => ({
+      id: issue.id,
+      title: issue.title,
+      description: issue.description,
+      deadline: issue.submissionDeadline?.toISOString().split('T')[0],
+      status: issue.isActive ? 'published' : 'draft',
+      distributionChannels: ["Journal Website", "Academic Networks"],
+      responsesReceived: 0, // Could be calculated from submissions
+      submissionGuidelines: issue.guidelines || "Follow standard submission guidelines",
+      expectedSubmissions: 25,
+      publishedDate: issue.createdAt?.toISOString().split('T')[0],
+      promotionStrategy: "Multi-channel academic promotion"
+    }))
+
+    return NextResponse.json(formattedCalls)
   } catch (error) {
-    logger.error('Error fetching call for papers:', error)
+    logError(error as Error, { context: 'guest-editor-call-for-papers' })
     return NextResponse.json(
       { error: 'Failed to fetch call for papers' },
       { status: 500 }

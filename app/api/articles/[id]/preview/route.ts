@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .select({
         id: articles.id,
         title: articles.title,
-        fileUrl: articles.fileUrl,
+        files: articles.files,
         status: articles.status,
       })
       .from(articles)
@@ -27,15 +27,37 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Article not available for preview" }, { status: 403 })
     }
 
-    // In a real implementation, you would:
-    // 1. Generate a secure, time-limited preview URL
-    // 2. Use ImageKit's document preview capabilities
-    // 3. Return the preview URL or redirect to it
+    // Get the article files and generate preview URL
+    let files
+    try {
+      files = typeof article.files === 'string' 
+        ? JSON.parse(article.files) 
+        : article.files || []
+    } catch (error) {
+      files = []
+    }
 
-    const previewUrl = article.fileUrl || `/files/articles/${articleId}/preview.pdf`
+    // Find the main manuscript file for preview
+    const manuscriptFile = files.find((file: any) => 
+      file.type === 'manuscript' || file.name?.toLowerCase().includes('manuscript')
+    ) || files[0]
 
-    // Redirect to the actual PDF preview
-    return NextResponse.redirect(previewUrl)
+    if (!manuscriptFile) {
+      return NextResponse.json({ error: "Preview file not found" }, { status: 404 })
+    }
+
+    // Generate preview URL (could be direct file URL or processed preview)
+    const previewUrl = manuscriptFile.previewUrl || 
+                      manuscriptFile.url || 
+                      `/api/files/${manuscriptFile.id}/preview`
+
+    // Return preview URL for client to handle
+    return NextResponse.json({
+      success: true,
+      previewUrl,
+      fileName: manuscriptFile.name || `article-${articleId}-preview.pdf`,
+      contentType: manuscriptFile.contentType || 'application/pdf'
+    })
   } catch (error) {
     logError(error as Error, { endpoint: `/api/articles/${params.id}/preview` })
     return NextResponse.json({ error: "Preview failed" }, { status: 500 })

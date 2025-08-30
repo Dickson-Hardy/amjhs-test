@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { articles } from "@/lib/db/schema"
 import { eq, sql } from "drizzle-orm"
+import { logError } from "@/lib/logger"
 
 export async function GET(
   request: NextRequest,
@@ -17,71 +18,22 @@ export async function GET(
 
     const articleId = params.id
 
-    // Increment download count
-    await db
-      .update(articles)
-      .set({ downloads: sql`${articles.downloads} + 1` })
-      .where(eq(articles.id, articleId))
-
-    // Get the article files from the database
-    const [articleData] = await db
-      .select({ files: articles.files })
-      .from(articles)
-      .where(eq(articles.id, articleId))
-
-    if (!articleData?.files || articleData.files.length === 0) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "No files available for download" 
-      }, { status: 404 })
-    }
-
-    // Return the first file (main manuscript) for download
-    const mainFile = articleData.files[0]
-    
-    return NextResponse.json({
-      success: true,
-      downloadUrl: mainFile.url,
-      filename: mainFile.name,
-      fileType: mainFile.type,
-    })
-  } catch (error) {rver"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
-import { db } from "@/lib/db"
-import { articles } from "@/lib/db/schema"
-import { eq, sql } from "drizzle-orm"
-import { logError } from "@/lib/logger"
-
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: articleId } = await params
-  try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: "Authentication required" },
-        { status: 401 }
-      )
-    }
-
     // Check if article exists and is published
     const [article] = await db
-      .select({ status: articles.status })
+      .select({ 
+        status: articles.status,
+        files: articles.files 
+      })
       .from(articles)
       .where(eq(articles.id, articleId))
+      .limit(1)
 
     if (!article) {
-      return NextResponse.json(
-        { success: false, error: "Article not found" },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: "Article not found" }, { status: 404 })
     }
 
     if (article.status !== "published") {
-      return NextResponse.json(
-        { success: false, error: "Article not available for download" },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: "Article not available for download" }, { status: 403 })
     }
 
     // Increment download count
@@ -90,14 +42,35 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .set({ downloads: sql`${articles.downloads} + 1` })
       .where(eq(articles.id, articleId))
 
-    // In a real implementation, you would:
-    // 1. Get the file URL from the database
-    // 2. Generate a signed URL for secure download
-    // 3. Return the download URL
+    if (!article.files) {
+      return NextResponse.json({ error: "Article files not found" }, { status: 404 })
+    }
+
+    // Parse files JSON and get the main manuscript file
+    let files
+    try {
+      files = typeof article.files === 'string' 
+        ? JSON.parse(article.files) 
+        : article.files
+    } catch (error) {
+      return NextResponse.json({ error: "Invalid file data" }, { status: 400 })
+    }
+
+    // Find the main manuscript file (usually the first PDF or the one marked as main)
+    const manuscriptFile = files.find((file: any) => 
+      file.type === 'manuscript' || file.name?.toLowerCase().includes('manuscript')
+    ) || files[0]
+
+    if (!manuscriptFile) {
+      return NextResponse.json({ error: "Manuscript file not found" }, { status: 404 })
+    }
 
     return NextResponse.json({
       success: true,
-      downloadUrl: `/files/articles/${articleId}/manuscript.pdf`, // Placeholder
+      downloadUrl: manuscriptFile.url || `/api/files/${manuscriptFile.id}/download`,
+      fileName: manuscriptFile.name || `article-${articleId}.pdf`,
+      fileSize: manuscriptFile.size || 0,
+      contentType: manuscriptFile.contentType || 'application/pdf'
     })
   } catch (error) {
     logError(error as Error, { endpoint: `/api/articles/${articleId}/download` })

@@ -42,6 +42,24 @@ function SubmitPageContent() {
     ethicsApproval: [],
     copyrightForm: []
   })
+  
+  // Track uploaded file metadata with Cloudinary URLs
+  const [cloudinaryFiles, setCloudinaryFiles] = useState<{[key: string]: Array<{
+    id: string
+    originalName: string
+    url: string
+    cloudinaryPublicId: string
+    size: number
+    fileType: string
+  }>}>({
+    manuscript: [],
+    figures: [],
+    tables: [],
+    supplementary: [],
+    coverLetter: [],
+    ethicsApproval: [],
+    copyrightForm: []
+  })
 
   // Form state
   const [formData, setFormData] = useState({
@@ -253,36 +271,123 @@ function SubmitPageContent() {
     input.click()
   }
 
-  const handleFileUpload = (files: FileList, category: string) => {
-    // Simulate file upload progress
+  const handleFileUpload = async (files: FileList, category: string) => {
     setUploadProgress(0)
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          
-          // Add files to the uploaded files state
-          setUploadedFiles(prev => ({
-            ...prev,
-            [category]: [...prev[category], ...Array.from(files)]
-          }))
-          
-          toast({
-            title: "Files Uploaded Successfully",
-            description: `${files.length} file(s) uploaded to ${category}.`,
-          })
-          return 100
+    const uploadPromises = Array.from(files).map(async (file, index) => {
+      try {
+        // Convert file to base64
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        })
+
+        // Upload to Cloudinary via our API
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            fileData: base64,
+            category: category,
+            description: `${category} file for manuscript submission`
+          }),
+        })
+
+        const result = await response.json()
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Upload failed')
         }
-        return prev + 10
+
+        // Update progress
+        const progressIncrement = 100 / files.length
+        setUploadProgress(prev => Math.min(prev + progressIncrement, 100))
+
+        return {
+          id: result.file.id,
+          originalName: result.file.originalName,
+          url: result.file.url,
+          cloudinaryPublicId: result.file.cloudinaryPublicId,
+          size: file.size,
+          fileType: file.type
+        }
+      } catch (error) {
+        console.error(`Failed to upload ${file.name}:`, error)
+        toast({
+          title: "Upload Failed",
+          description: `Failed to upload ${file.name}. Please try again.`,
+          variant: "destructive"
+        })
+        throw error
+      }
+    })
+
+    try {
+      const uploadedFileMetadata = await Promise.all(uploadPromises)
+      
+      // Add files to both local state (for form display) and Cloudinary metadata
+      setUploadedFiles(prev => ({
+        ...prev,
+        [category]: [...prev[category], ...Array.from(files)]
+      }))
+      
+      setCloudinaryFiles(prev => ({
+        ...prev,
+        [category]: [...prev[category], ...uploadedFileMetadata]
+      }))
+      
+      toast({
+        title: "Files Uploaded Successfully",
+        description: `${files.length} file(s) uploaded to cloud storage for ${category}.`,
       })
-    }, 200)
+    } catch (error) {
+      console.error('Upload error:', error)
+      // Reset progress on error
+      setUploadProgress(0)
+    }
   }
 
-  const removeFile = (category: string, fileIndex: number) => {
-    setUploadedFiles(prev => ({
-      ...prev,
-      [category]: prev[category].filter((_, index) => index !== fileIndex)
-    }))
+  const removeFile = async (category: string, fileIndex: number) => {
+    try {
+      // Get the Cloudinary file metadata
+      const cloudinaryFile = cloudinaryFiles[category][fileIndex]
+      
+      if (cloudinaryFile?.cloudinaryPublicId) {
+        // Delete from Cloudinary via API (we'll need to create this endpoint)
+        await fetch(`/api/upload/${cloudinaryFile.id}`, {
+          method: 'DELETE'
+        })
+      }
+      
+      // Remove from both local states
+      setUploadedFiles(prev => ({
+        ...prev,
+        [category]: prev[category].filter((_, index) => index !== fileIndex)
+      }))
+      
+      setCloudinaryFiles(prev => ({
+        ...prev,
+        [category]: prev[category].filter((_, index) => index !== fileIndex)
+      }))
+      
+      toast({
+        title: "File Removed",
+        description: "File has been removed from cloud storage.",
+      })
+    } catch (error) {
+      console.error('Failed to remove file:', error)
+      toast({
+        title: "Removal Failed", 
+        description: "Failed to remove file. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   const handlePreviousStep = () => {
@@ -374,7 +479,18 @@ function SubmitPageContent() {
             affiliation: author.affiliation || `${author.institution}, ${author.department}, ${author.country}`.replace(/^, |, $|,\s*,/g, '').trim(),
             isCorrespondingAuthor: author.isCorrespondingAuthor,
           })),
-          files: [], // TODO: Add uploaded files integration with Cloudinary
+          files: Object.entries(cloudinaryFiles).flatMap(([type, files]) => 
+            files.map(file => ({
+              name: file.originalName,
+              type: type,
+              size: file.size,
+              contentType: file.fileType,
+              // Use real Cloudinary URLs instead of placeholders
+              url: file.url,
+              fileId: file.id,
+              cloudinaryPublicId: file.cloudinaryPublicId
+            }))
+          ),
           recommendedReviewers: formData.recommendedReviewers
             .filter(reviewer => reviewer.name.trim() && reviewer.email.trim() && reviewer.affiliation.trim())
             .map(reviewer => ({
@@ -383,9 +499,11 @@ function SubmitPageContent() {
               affiliation: reviewer.affiliation.trim(),
               expertise: reviewer.expertise?.trim() || "General expertise",
             })),
-          coverLetter: undefined, // TODO: Add cover letter field to form
+          coverLetter: uploadedFiles.coverLetter && uploadedFiles.coverLetter.length > 0 
+            ? uploadedFiles.coverLetter[0].name 
+            : undefined,
           ethicalApproval: uploadedFiles.ethicsApproval && uploadedFiles.ethicsApproval.length > 0,
-          conflictOfInterest: false, // TODO: Add conflict of interest field to form
+          conflictOfInterest: formData.conflicts !== "none" && formData.conflicts !== "",
           funding: formData.funding || undefined,
         },
         submissionType: "new",

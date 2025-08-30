@@ -4,6 +4,7 @@ import { db } from "@/lib/database"
 import { sql } from "@/lib/db"
 import { sendTemplateEmail } from "@/lib/email-hybrid"
 import { authOptions } from "@/lib/auth"
+import { uploadToCloudinary } from "@/lib/cloudinary"
 
 export async function POST(request: NextRequest) {
   try {
@@ -219,40 +220,29 @@ export async function GET(request: NextRequest) {
 
 async function uploadFile(file: File, category: string): Promise<string> {
   try {
-    // In a real implementation, upload to cloud storage:
-    // Example with AWS S3:
-    // const uploadResult = await s3.upload({
-    //   Bucket: process.env.AWS_S3_BUCKET!,
-    //   Key: `editorial-board/${category}/${Date.now()}_${file.name}`,
-    //   Body: Buffer.from(await file.arrayBuffer()),
-    //   ContentType: file.type
-    // }).promise()
-    // return uploadResult.Location
+    // Convert file to buffer for Cloudinary upload
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
     
-    // Example with Cloudinary:
-    // const uploadResult = await cloudinary.uploader.upload(
-    //   `data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString('base64')}`,
-    //   {
-    //     folder: `editorial-board/${category}`,
-    //     resource_type: 'auto'
-    //   }
-    // )
-    // Simple file storage - in production, use proper file upload service
+    // Generate unique filename
     const timestamp = Date.now()
-    const filename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const uploadUrl = `uploads/${category}/${timestamp}_${filename}`
+    const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const uniqueFilename = `${timestamp}_${cleanFileName}`
     
-    // In production, you would:
-    // 1. Validate file type and size
-    // 2. Upload to cloud storage (S3, Cloudinary, etc.)
-    // 3. Return the actual storage URL
-    // For now, we'll store the file reference
+    // Determine resource type
+    const resourceType = file.type.startsWith('image/') ? 'image' : 'raw'
     
-    logger.info(`File uploaded: ${file.name} -> ${uploadUrl}`)
+    // Upload to Cloudinary
+    const uploadResult = await uploadToCloudinary(
+      fileBuffer,
+      uniqueFilename,
+      `editorial-board/${category}`,
+      resourceType
+    ) as any
     
-    return uploadUrl
+    // Return the secure URL
+    return uploadResult.secure_url
   } catch (error) {
-    logger.error('Error uploading file:', error)
-    throw new AppError(`Failed to upload ${category} file`)
+    console.error('File upload error:', error)
+    throw new Error(`Failed to upload ${file.name}`)
   }
 }
