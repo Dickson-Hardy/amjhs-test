@@ -19,6 +19,14 @@
     }
   ],
   "functions": {
+    "app/api/upload/chunked/route.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "app/api/upload/route.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
     "app/api/*/route.ts": {
       "maxDuration": 30
     },

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import RouteGuard from "@/components/route-guard"
 import BackupManagement from "@/components/admin/BackupManagement"
+import { logError } from "@/lib/logger"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -80,7 +81,7 @@ export default function ModernAdminDashboard() {
           })
         }
       } catch (error) {
-        logger.error("Error fetching dashboard data:", error)
+        logError(error as Error, { endpoint: "/admin/dashboard", operation: "fetchDashboardData" })
         // Keep default empty state on error
         setStats({
           totalUsers: 0,

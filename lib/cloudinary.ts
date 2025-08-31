@@ -9,13 +9,26 @@ cloudinary.config({
 
 export { cloudinary }
 
+// Cloudinary upload result type
+export interface CloudinaryUploadResult {
+  public_id: string
+  secure_url: string
+  url: string
+  format: string
+  resource_type: string
+  bytes: number
+  width?: number
+  height?: number
+  [key: string]: any
+}
+
 // Upload file to Cloudinary
 export async function uploadToCloudinary(
   buffer: Buffer,
   filename: string,
   folder: string = 'manuscript-submissions',
   resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto'
-): Promise<unknown> {
+): Promise<CloudinaryUploadResult> {
   return new Promise((resolve, reject) => {
     cloudinary.uploader
       .upload_stream(
@@ -29,7 +42,7 @@ export async function uploadToCloudinary(
         },
         (error, result) => {
           if (error) reject(error)
-          else resolve(result)
+          else resolve(result as CloudinaryUploadResult)
         }
       )
       .end(buffer)

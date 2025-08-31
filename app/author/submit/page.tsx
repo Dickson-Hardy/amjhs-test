@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { uploadFileChunked, formatFileSize } from "@/lib/chunked-upload"
 import { RouteGuard } from "@/components/route-guard"
 import AuthorLayout from "@/components/layouts/author-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -116,52 +117,18 @@ export default function SubmitPage() {
       
       const maxSize = maxSizes[category as keyof typeof maxSizes] || 10 * 1024 * 1024
       if (file.size > maxSize) {
-        throw new Error(`File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds limit of ${(maxSize / 1024 / 1024).toFixed(2)}MB for ${category}`)
+        throw new Error(`File size ${formatFileSize(file.size)} exceeds limit of ${formatFileSize(maxSize)} for ${category}`)
       }
       
-      // Convert file to base64
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.readAsDataURL(file)
-      })
-
-      const uploadPayload = {
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        fileData: base64,
-        category,
-        description: `${category} file for submission`
-      }
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(uploadPayload)
-      })
-
-      // Handle non-JSON responses (like nginx error pages)
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        const textResponse = await response.text()
-        console.error('Non-JSON response:', textResponse)
-        
-        // Check for common nginx/server errors
-        if (textResponse.includes('Request Entity Too Large') || textResponse.includes('413')) {
-          throw new Error('File too large. Please choose a smaller file (max 50MB for supplementary files).')
-        } else if (textResponse.includes('timeout') || textResponse.includes('504') || textResponse.includes('502')) {
-          throw new Error('Upload timeout. Please try again with a smaller file or check your connection.')
-        } else {
-          throw new Error('Server error. Please try again later.')
+      // Use chunked upload with progress tracking
+      const result = await uploadFileChunked(file, category, `${category} file for submission`, {
+        onProgress: (progress) => {
+          console.log(`Upload progress: ${progress.percentage}% (${progress.chunksUploaded}/${progress.totalChunks} chunks)`)
+          // You can add a progress bar here if needed
         }
-      }
+      })
 
-      const result = await response.json()
-
-      if (response.ok && result.success) {
+      if (result.success && result.file) {
         return {
           id: result.file.id,
           name: result.file.originalName,

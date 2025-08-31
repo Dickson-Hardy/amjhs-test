@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from "uuid"
 import { db } from "@/lib/db"
 import { userDocuments } from "@/lib/db/schema"
 import { eq, desc, and } from "drizzle-orm"
-import { uploadToCloudinary, deleteFromCloudinary } from "@/lib/cloudinary"
+import { uploadToCloudinary, deleteFromCloudinary, CloudinaryUploadResult } from "@/lib/cloudinary"
 
 // File upload validation schema
 const fileUploadSchema = z.object({
@@ -39,7 +39,7 @@ const MAX_FILE_SIZES = {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -256,7 +256,7 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
