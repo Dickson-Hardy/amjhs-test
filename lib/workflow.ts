@@ -17,6 +17,7 @@ import { eq, and, sql, inArray, not } from "drizzle-orm"
 import { sendReviewInvitation, sendWorkflowNotification, sendEmail } from "./email-hybrid"
 import { emailTemplates } from "./email-templates"
 import { v4 as uuidv4 } from "uuid"
+import { logger } from "./logger"
 
 // Proper interfaces to replace any types
 interface Reviewer {
