@@ -105,6 +105,20 @@ export default function SubmitPage() {
     try {
       setUploading(true)
       
+      // Client-side file size validation
+      const maxSizes = {
+        manuscript: 10 * 1024 * 1024, // 10MB
+        supplementary: 50 * 1024 * 1024, // 50MB
+        cover_letter: 5 * 1024 * 1024, // 5MB
+        ethics_approval: 5 * 1024 * 1024, // 5MB
+        conflict_disclosure: 2 * 1024 * 1024 // 2MB
+      }
+      
+      const maxSize = maxSizes[category as keyof typeof maxSizes] || 10 * 1024 * 1024
+      if (file.size > maxSize) {
+        throw new Error(`File size ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds limit of ${(maxSize / 1024 / 1024).toFixed(2)}MB for ${category}`)
+      }
+      
       // Convert file to base64
       const base64 = await new Promise<string>((resolve) => {
         const reader = new FileReader()
@@ -128,6 +142,22 @@ export default function SubmitPage() {
         },
         body: JSON.stringify(uploadPayload)
       })
+
+      // Handle non-JSON responses (like nginx error pages)
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text()
+        console.error('Non-JSON response:', textResponse)
+        
+        // Check for common nginx/server errors
+        if (textResponse.includes('Request Entity Too Large') || textResponse.includes('413')) {
+          throw new Error('File too large. Please choose a smaller file (max 50MB for supplementary files).')
+        } else if (textResponse.includes('timeout') || textResponse.includes('504') || textResponse.includes('502')) {
+          throw new Error('Upload timeout. Please try again with a smaller file or check your connection.')
+        } else {
+          throw new Error('Server error. Please try again later.')
+        }
+      }
 
       const result = await response.json()
 

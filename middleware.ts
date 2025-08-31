@@ -35,9 +35,9 @@ export default withAuth(
           return NextResponse.redirect(loginUrl)
         }
         
-        // If authenticated but not admin role, redirect to appropriate dashboard
+        // If authenticated but not admin or editor-in-chief role, redirect to appropriate dashboard
         const userRole = req.nextauth.token.role
-        if (userRole !== "admin") {
+        if (!["admin", "editor-in-chief"].includes(userRole)) {
           const redirectTo = userRole === "editorial-assistant" ? "/editorial-assistant" : "/dashboard"
           return NextResponse.redirect(new URL(redirectTo, req.url))
         }
@@ -162,9 +162,9 @@ export default withAuth(
           return userRole === "editorial-assistant" || ["admin", "editor-in-chief", "managing-editor"].includes(userRole || "")
         }
 
-        // Admin routes - highest level access
+        // Admin routes - highest level access (Admin and Editor-in-Chief)
         if (pathname.startsWith("/admin")) {
-          return userRole === "admin"
+          return userRole === "admin" || userRole === "editor-in-chief"
         }
 
         // General dashboard and submission routes

@@ -152,7 +152,7 @@ export default function EditorialAssistantDashboard() {
 
   if (loading) {
     return (
-      <RouteGuard allowedRoles={["editorial-assistant", "admin"]}>
+      <RouteGuard allowedRoles={["editorial-assistant", "managing-editor", "editor-in-chief", "admin"]}>
         <EditorLayout>
           <div className="flex items-center justify-center min-h-screen">
             <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
@@ -163,7 +163,7 @@ export default function EditorialAssistantDashboard() {
   }
 
   return (
-    <RouteGuard allowedRoles={["editorial-assistant", "admin"]}>
+    <RouteGuard allowedRoles={["editorial-assistant", "managing-editor", "editor-in-chief", "admin"]}>
       <EditorLayout>
         <div className="space-y-8">
           <div className="mb-8">

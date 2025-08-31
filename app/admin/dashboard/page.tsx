@@ -101,7 +101,7 @@ export default function ModernAdminDashboard() {
   }, [session])
 
   return (
-    <RouteGuard allowedRoles={["admin"]}>
+    <RouteGuard allowedRoles={["admin", "editor-in-chief"]}>
       <div>
         {/* Header Section */}
         <div className="mb-8">

@@ -30,6 +30,8 @@ export default function DashboardPage() {
       router.push("/reviewer/dashboard")
     } else if (role === "admin") {
       router.push("/admin/dashboard")
+    } else if (role === "editorial-assistant") {
+      router.push("/editorial-assistant")
     } else {
       // Default to author dashboard for unknown roles
       router.push("/author/dashboard")
@@ -37,7 +39,7 @@ export default function DashboardPage() {
   }, [session, status, router])
 
   return (
-    <RouteGuard allowedRoles={["author", "reviewer", "editor", "admin"]}>
+    <RouteGuard allowedRoles={["author", "reviewer", "editor", "admin", "editorial-assistant"]}>
       <div className="min-h-screen flex items-center justify-center">
         <Card className="w-96">
           <CardContent className="p-8 text-center">

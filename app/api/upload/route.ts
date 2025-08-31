@@ -43,6 +43,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    // Check content length to provide better error message
+    const contentLength = request.headers.get('content-length')
+    if (contentLength && parseInt(contentLength) > 100 * 1024 * 1024) { // 100MB limit
+      return NextResponse.json({ 
+        error: "File too large. Maximum file size is 100MB." 
+      }, { status: 413 })
+    }
+
     const body = await request.json()
     const validation = fileUploadSchema.safeParse(body)
     
