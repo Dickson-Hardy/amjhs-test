@@ -6,11 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, ClipboardCheck, Users, FileText, Shield } from "lucide-react"
+import { Eye, EyeOff, ClipboardCheck } from "lucide-react"
 import { useToast } from "@/components/toast-provider"
-import Image from "next/image"
 
 interface EditorialAssistantLoginProps {
   onSuccess?: () => void
@@ -77,73 +75,97 @@ export default function EditorialAssistantLogin({ onSuccess, redirectTo }: Edito
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center space-x-3">
-            <div className="bg-white p-3 rounded-xl border shadow-lg">
-              <ClipboardCheck className="h-8 w-8 text-blue-600" />
-            </div>
-            <div>
-              <div className="font-bold text-3xl text-gray-800">Editorial Assistant</div>
-              <div className="text-sm text-gray-600">AMHSJ Manuscript Screening</div>
+    <div className="min-h-screen flex">
+      {/* Left Side - Purple Gradient with Curves */}
+      <div className="flex-1 relative overflow-hidden bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800">
+        {/* Flowing Curves Background */}
+        <div className="absolute inset-0">
+          <svg className="absolute w-full h-full" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="rgba(147, 51, 234, 0.3)" />
+                <stop offset="100%" stopColor="rgba(168, 85, 247, 0.5)" />
+              </linearGradient>
+              <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="rgba(168, 85, 247, 0.4)" />
+                <stop offset="100%" stopColor="rgba(196, 181, 253, 0.3)" />
+              </linearGradient>
+            </defs>
+            
+            {/* Flowing curves */}
+            <path d="M0,200 Q200,100 400,200 T800,200 L800,400 Q600,300 400,400 T0,400 Z" fill="url(#gradient1)" />
+            <path d="M0,400 Q200,300 400,400 T800,400 L800,600 Q600,500 400,600 T0,600 Z" fill="url(#gradient2)" />
+            <path d="M0,600 Q200,500 400,600 T800,600 L800,800 L0,800 Z" fill="rgba(147, 51, 234, 0.2)" />
+          </svg>
+        </div>
+        
+        {/* Logo and branding on left side */}
+        <div className="relative z-10 flex flex-col justify-center items-start p-16 h-full text-white">
+          <div className="mb-8">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                <ClipboardCheck className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <div className="text-lg font-semibold">CHRISTIAN MEDICAL AND</div>
+                <div className="text-lg font-semibold">DENTAL ASSOCIATION</div>
+                <div className="text-lg font-semibold">OF NIGERIA</div>
+                <div className="text-sm opacity-90 mt-1">(CMDA NIGERIA)</div>
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <Card className="shadow-xl border-0">
-          <CardHeader className="space-y-1 pb-6">
-            <CardTitle className="text-2xl text-center text-gray-800">
-              Welcome Back
-            </CardTitle>
-            <CardDescription className="text-center text-gray-600">
-              Sign in to access manuscript screening and editorial workflow management
-            </CardDescription>
-          </CardHeader>
+      {/* Right Side - White Login Form */}
+      <div className="flex-1 flex items-center justify-center bg-white p-8">
+        <div className="w-full max-w-md">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+          </div>
 
-          <CardContent className="space-y-6">
+          <div className="space-y-6">
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium text-gray-700">
-                  Email Address
+                  Email <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="editorial.assistant@amhsj.org"
+                  placeholder="Enter email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="h-11 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                  className="h-12 border-gray-300 focus:border-purple-500 focus:ring-purple-500 rounded-lg"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                  Password
+                  Password <span className="text-red-500">*</span>
                 </Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
+                    placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="h-11 pr-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                    className="h-12 pr-12 border-gray-300 focus:border-purple-500 focus:ring-purple-500 rounded-lg"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-11 px-3 py-2 hover:bg-transparent"
+                    className="absolute right-0 top-0 h-12 px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
@@ -155,52 +177,29 @@ export default function EditorialAssistantLogin({ onSuccess, redirectTo }: Edito
                 </div>
               </div>
 
+              <div className="text-right">
+                <a 
+                  href="mailto:managing@amhsj.org" 
+                  className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                >
+                  Forgot Password?
+                </a>
+              </div>
+
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg text-base"
               >
-                {isLoading ? "Signing In..." : "Sign In to Editorial Assistant"}
+                {isLoading ? "Signing In..." : "Login"}
               </Button>
             </form>
 
-            {/* Editorial Assistant Features */}
-            <div className="pt-6 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Editorial Assistant Capabilities:</h3>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <ClipboardCheck className="h-4 w-4 text-blue-500" />
-                  <span>Initial manuscript screening</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <Users className="h-4 w-4 text-green-500" />
-                  <span>Associate editor assignment</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <FileText className="h-4 w-4 text-purple-500" />
-                  <span>Quality assessment</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <Shield className="h-4 w-4 text-orange-500" />
-                  <span>Workflow management</span>
-                </div>
-              </div>
+            <div className="text-center text-sm text-gray-500 mt-8">
+              ©2025 CMDA Nigeria
             </div>
-
-            {/* Help Text */}
-            <div className="text-center text-xs text-gray-500">
-              <p>Need help? Contact the managing editor</p>
-              <p className="mt-1">
-                <a 
-                  href="mailto:managing@amhsj.org" 
-                  className="text-blue-600 hover:text-blue-700 underline"
-                >
-                  managing@amhsj.org
-                </a>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   )

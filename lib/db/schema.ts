@@ -240,6 +240,7 @@ export const articles = pgTable("articles", {
   files: jsonb("files").$type<{ url: string; type: string; name: string; fileId: string }[]>(),
   views: integer("views").default(0),
   downloads: integer("downloads").default(0),
+  citations: integer("citations").default(0),
   metadata: jsonb("metadata").$type<ArticleMetadata>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -321,7 +322,7 @@ export const messages = pgTable("messages", {
   status: text("status").default("unread"), // unread, read, replied, archived
   submissionId: uuid("submission_id").references(() => articles.id),
   isReply: boolean("is_reply").default(false),
-  parentMessageId: uuid("parent_message_id").references(() => messages.id),
+  parentMessageId: uuid("parent_message_id"),
   attachments: jsonb("attachments").$type<{ name: string; url: string; type: string; size: number }[]>(),
   isRead: boolean("is_read").default(false),
   readBy: jsonb("read_by").$type<{ userId: string; readAt: string }[]>(),
@@ -689,4 +690,140 @@ export const emailTemplates = pgTable("email_templates", {
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+})
+
+// Critical missing tables - Phase 1: High usage in codebase
+export const citations = pgTable("citations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  citing_article_id: uuid("citing_article_id").references(() => articles.id),
+  cited_article_id: uuid("cited_article_id").references(() => articles.id),
+  citation_text: text("citation_text"),
+  citation_type: text("citation_type").default("reference"), 
+  doi: text("doi"),
+  title: text("title"),
+  authors: text("authors"),
+  journal: text("journal"),
+  year: integer("year"),
+  volume: text("volume"),
+  issue: text("issue"),
+  pages: text("pages"),
+  url: text("url"),
+  created_at: timestamp("created_at").defaultNow()
+})
+
+export const downloads = pgTable("downloads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  article_id: uuid("article_id").references(() => articles.id),
+  user_id: uuid("user_id").references(() => users.id),
+  ip_address: text("ip_address"),
+  user_agent: text("user_agent"),
+  session_id: text("session_id"),
+  time_on_page: integer("time_on_page"),
+  is_bot: boolean("is_bot").default(false),
+  created_at: timestamp("created_at").defaultNow()
+})
+
+export const quality_metrics = pgTable("quality_metrics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  manuscript_id: uuid("manuscript_id").references(() => submissions.id),
+  metric_type: text("metric_type").notNull(), // ai_assessment, plagiarism_score, readability, etc.
+  metric_value: text("metric_value").notNull(),
+  metric_score: integer("metric_score"), // 0-100 score
+  details: jsonb("details"),
+  assessed_by: uuid("assessed_by").references(() => users.id),
+  assessment_date: timestamp("assessment_date").defaultNow(),
+  created_at: timestamp("created_at").defaultNow()
+})
+
+export const manuscript_comments = pgTable("manuscript_comments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  manuscript_id: uuid("manuscript_id").references(() => submissions.id),
+  user_id: uuid("user_id").references(() => users.id),
+  comment_text: text("comment_text").notNull(),
+  comment_type: text("comment_type").default("general"), // general, editorial, peer_review, etc.
+  line_number: integer("line_number"),
+  status: text("status").default("active"), // active, resolved, archived
+  is_private: boolean("is_private").default(false),
+  parent_comment_id: uuid("parent_comment_id"), // For replies
+  metadata: jsonb("metadata"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow()
+})
+
+// Configuration tables
+export const email_settings = pgTable("email_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  setting_key: text("setting_key").notNull().unique(),
+  setting_value: text("setting_value").notNull(),
+  description: text("description"),
+  is_active: boolean("is_active").default(true),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow()
+})
+
+export const journal_settings = pgTable("journal_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  setting_key: text("setting_key").notNull().unique(),
+  setting_value: text("setting_value").notNull(),
+  setting_type: text("setting_type").default("text"), // text, number, boolean, json
+  description: text("description"),
+  is_public: boolean("is_public").default(false),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow()
+})
+
+// Screening and Editorial Assistant tables
+export const manuscript_screenings = pgTable("manuscript_screenings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  manuscript_id: uuid("manuscript_id").references(() => submissions.id).notNull(),
+  editorial_assistant_id: uuid("editorial_assistant_id").references(() => users.id).notNull(),
+  screening_status: text("screening_status").notNull().default("pending"), // pending, in_progress, completed
+  screening_decision: text("screening_decision").notNull().default("pending"), // pending, pass, fail, revision_required
+  file_completeness: boolean("file_completeness").notNull().default(false),
+  plagiarism_check: boolean("plagiarism_check").notNull().default(false),
+  format_compliance: boolean("format_compliance").notNull().default(false),
+  ethical_compliance: boolean("ethical_compliance").notNull().default(false),
+  language_quality: boolean("language_quality").notNull().default(false),
+  quality_score: integer("quality_score"), // 0-100 overall quality score
+  completeness_score: integer("completeness_score"), // 0-100 completeness score
+  overall_assessment: text("overall_assessment"),
+  identified_issues: jsonb("identified_issues"), // Array of issues found
+  required_revisions: jsonb("required_revisions"), // Array of required revisions
+  revision_deadline: timestamp("revision_deadline"),
+  screening_started_at: timestamp("screening_started_at"),
+  screening_completed_at: timestamp("screening_completed_at"),
+  screening_duration_minutes: integer("screening_duration_minutes"),
+  screening_notes: text("screening_notes"),
+  internal_notes: text("internal_notes"), // For editorial assistant's private notes
+  author_feedback: text("author_feedback"), // Feedback to be sent to author
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow()
+})
+
+export const screening_templates = pgTable("screening_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  template_name: text("template_name").notNull(),
+  template_type: text("template_type").notNull(), // initial_screening, revision_screening, etc.
+  criteria: jsonb("criteria").notNull(), // Screening criteria and weights
+  is_default: boolean("is_default").default(false),
+  is_active: boolean("is_active").default(true),
+  created_by: uuid("created_by").references(() => users.id),
+  description: text("description"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow()
+})
+
+export const screening_workflow_rules = pgTable("screening_workflow_rules", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  rule_name: text("rule_name").notNull(),
+  rule_type: text("rule_type").notNull(), // auto_assign, escalation, notification, etc.
+  conditions: jsonb("conditions").notNull(), // Conditions for rule activation
+  actions: jsonb("actions").notNull(), // Actions to take when rule is triggered
+  priority: integer("priority").default(0),
+  is_active: boolean("is_active").default(true),
+  applies_to: text("applies_to").default("all"), // all, specific_submission_types, etc.
+  created_by: uuid("created_by").references(() => users.id),
+  description: text("description"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow()
 })

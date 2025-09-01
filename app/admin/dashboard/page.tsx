@@ -1,9 +1,8 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import RouteGuard from "@/components/route-guard"
 import BackupManagement from "@/components/admin/BackupManagement"
 import { logError } from "@/lib/logger"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,7 +58,7 @@ export default function ModernAdminDashboard() {
 
   useEffect(() => {
     async function fetchDashboardData() {
-      if (session?.user?.role !== "admin") return
+      if (!session?.user?.role || !["admin", "editor-in-chief"].includes(session.user.role)) return
 
       try {
         const response = await fetch("/api/admin/dashboard-stats")
@@ -102,8 +101,7 @@ export default function ModernAdminDashboard() {
   }, [session])
 
   return (
-    <RouteGuard allowedRoles={["admin", "editor-in-chief"]}>
-      <div>
+    <div>
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
@@ -804,6 +802,6 @@ export default function ModernAdminDashboard() {
           </TabsContent>
         </Tabs>
       </div>
-    </RouteGuard>
+    </div>
   )
 }

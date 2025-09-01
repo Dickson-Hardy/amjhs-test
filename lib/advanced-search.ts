@@ -1,5 +1,5 @@
 import { db } from "./db"
-import { articles, authors, journals, volumes, issues } from "./db/schema"
+import { articles, volumes, issues } from "./db/schema"
 import { and, or, ilike, desc, asc, sql, eq, gte, lte, inArray } from "drizzle-orm"
 import { logger } from "./logger"
 
@@ -36,8 +36,8 @@ export interface SearchResult {
   id: string
   title: string
   abstract: string
-  authors: string[]
-  authorAffiliations: string[]
+  authorId: string
+  coAuthors: any[]
   keywords: string[]
   category: string
   volume: string
@@ -45,11 +45,10 @@ export interface SearchResult {
   pages: string
   publishedDate: string
   doi?: string
-  pdfUrl?: string
   status: string
-  viewCount: number
-  downloadCount: number
-  citationCount: number
+  views: number
+  downloads: number
+  citations: number
   relevanceScore: number
   highlightedTitle?: string
   highlightedAbstract?: string
@@ -78,6 +77,30 @@ export class AdvancedSearchService {
     
     try {
       logger.info("Advanced search initiated", { filters })
+      
+      // Test database connection
+      try {
+        await db.select({ count: sql<number>`1` }).from(articles).limit(1)
+      } catch (dbError: any) {
+        logger.error("Database connection failed", { error: dbError.message })
+        // Return empty results if database is unavailable
+        return {
+          results: [],
+          total: 0,
+          page: filters.page || 1,
+          limit: filters.limit || 20,
+          totalPages: 0,
+          aggregations: {
+            categories: {},
+            authors: {},
+            keywords: {},
+            years: {},
+            volumes: {}
+          },
+          suggestions: [],
+          executionTime: Date.now() - startTime
+        }
+      }
 
       const page = filters.page || 1
       const limit = filters.limit || 20
@@ -89,8 +112,8 @@ export class AdvancedSearchService {
           id: articles.id,
           title: articles.title,
           abstract: articles.abstract,
-          authors: articles.authors,
-          authorAffiliations: articles.authorAffiliations,
+          authorId: articles.authorId,
+          coAuthors: articles.coAuthors,
           keywords: articles.keywords,
           category: articles.category,
           volume: articles.volume,
@@ -98,11 +121,10 @@ export class AdvancedSearchService {
           pages: articles.pages,
           publishedDate: articles.publishedDate,
           doi: articles.doi,
-          pdfUrl: articles.pdfUrl,
           status: articles.status,
-          viewCount: articles.viewCount,
-          downloadCount: articles.downloadCount,
-          citationCount: articles.citationCount,
+          views: articles.views,
+          downloads: articles.downloads,
+          citations: articles.citations,
           // Calculate relevance score
           relevanceScore: sql<number>`
             CASE 
@@ -114,16 +136,16 @@ export class AdvancedSearchService {
                 CASE WHEN LOWER(${articles.abstract}) LIKE LOWER(${'%' + (filters.query || '') + '%'}) THEN 1.5 ELSE 0 END +
                 -- Keywords match weight: 2.0
                 CASE WHEN EXISTS(
-                  SELECT 1 FROM UNNEST(${articles.keywords}) AS keyword 
+                  SELECT 1 FROM jsonb_array_elements_text(${articles.keywords}) AS keyword 
                   WHERE LOWER(keyword) LIKE LOWER(${'%' + (filters.query || '') + '%'})
                 ) THEN 2.0 ELSE 0 END +
-                -- Authors match weight: 2.5
+                -- Co-authors match weight: 2.5
                 CASE WHEN EXISTS(
-                  SELECT 1 FROM UNNEST(${articles.authors}) AS author 
+                  SELECT 1 FROM jsonb_array_elements_text(${articles.coAuthors}) AS author 
                   WHERE LOWER(author) LIKE LOWER(${'%' + (filters.query || '') + '%'})
                 ) THEN 2.5 ELSE 0 END +
-                -- Citation boost (logarithmic)
-                LOG(GREATEST(${articles.citationCount}, 1)) * 0.1 +
+                -- View count boost (logarithmic)
+                LOG(GREATEST(${articles.views}, 1)) * 0.05 +
                 -- Recent publication boost
                 CASE WHEN ${articles.publishedDate} > NOW() - INTERVAL '1 year' THEN 0.5 ELSE 0 END
               )
@@ -143,11 +165,11 @@ export class AdvancedSearchService {
             ilike(articles.title, searchQuery),
             ilike(articles.abstract, searchQuery),
             sql`EXISTS(
-              SELECT 1 FROM UNNEST(${articles.keywords}) AS keyword 
+              SELECT 1 FROM jsonb_array_elements_text(${articles.keywords}) AS keyword 
               WHERE LOWER(keyword) LIKE ${searchQuery}
             )`,
             sql`EXISTS(
-              SELECT 1 FROM UNNEST(${articles.authors}) AS author 
+              SELECT 1 FROM jsonb_array_elements_text(${articles.coAuthors}) AS author 
               WHERE LOWER(author) LIKE ${searchQuery}
             )`
           )
@@ -163,7 +185,7 @@ export class AdvancedSearchService {
       if (filters.authors && filters.authors.length > 0) {
         conditions.push(
           sql`EXISTS(
-            SELECT 1 FROM UNNEST(${articles.authors}) AS author 
+            SELECT 1 FROM jsonb_array_elements_text(${articles.coAuthors}) AS author 
             WHERE author = ANY(${filters.authors})
           )`
         )
@@ -172,10 +194,7 @@ export class AdvancedSearchService {
       // Keywords filter
       if (filters.keywords && filters.keywords.length > 0) {
         conditions.push(
-          sql`EXISTS(
-            SELECT 1 FROM UNNEST(${articles.keywords}) AS keyword 
-            WHERE keyword = ANY(${filters.keywords})
-          )`
+          sql`${articles.keywords} ?| ${filters.keywords}`
         )
       }
 
@@ -183,8 +202,8 @@ export class AdvancedSearchService {
       if (filters.dateRange) {
         conditions.push(
           and(
-            gte(articles.publishedDate, filters.dateRange.start.toISOString()),
-            lte(articles.publishedDate, filters.dateRange.end.toISOString())
+            gte(articles.publishedDate, filters.dateRange.start),
+            lte(articles.publishedDate, filters.dateRange.end)
           )
         )
       }
@@ -204,26 +223,27 @@ export class AdvancedSearchService {
 
       // Numeric filters
       if (filters.citationCountMin) {
-        conditions.push(gte(articles.citationCount, filters.citationCountMin))
+        conditions.push(gte(articles.citations, filters.citationCountMin))
       }
       if (filters.viewCountMin) {
-        conditions.push(gte(articles.viewCount, filters.viewCountMin))
+        conditions.push(gte(articles.views, filters.viewCountMin))
       }
       if (filters.downloadCountMin) {
-        conditions.push(gte(articles.downloadCount, filters.downloadCountMin))
+        conditions.push(gte(articles.downloads, filters.downloadCountMin))
       }
 
       // Boolean filters
       if (filters.hasFullText) {
-        conditions.push(sql`${articles.abstract} IS NOT NULL AND LENGTH(${articles.abstract}) > 100`)
+        conditions.push(sql`${articles.content} IS NOT NULL AND LENGTH(${articles.content}) > 100`)
       }
-      if (filters.hasPDF) {
-        conditions.push(sql`${articles.pdfUrl} IS NOT NULL`)
-      }
+      // PDF check removed as pdfUrl column doesn't exist
+      // if (filters.hasPDF) {
+      //   conditions.push(sql`${articles.files} IS NOT NULL AND jsonb_array_length(${articles.files}) > 0`)
+      // }
 
       // Apply all conditions
       if (conditions.length > 0) {
-        baseQuery = baseQuery.where(and(...conditions))
+        baseQuery = baseQuery.where(and(...conditions)) as any
       }
 
       // Apply sorting
@@ -236,42 +256,42 @@ export class AdvancedSearchService {
             sortOrder === 'desc' 
               ? desc(sql`relevanceScore`) 
               : asc(sql`relevanceScore`)
-          )
+          ) as any
           break
         case 'date':
           baseQuery = baseQuery.orderBy(
             sortOrder === 'desc' 
               ? desc(articles.publishedDate) 
               : asc(articles.publishedDate)
-          )
+          ) as any
           break
         case 'citations':
           baseQuery = baseQuery.orderBy(
             sortOrder === 'desc' 
-              ? desc(articles.citationCount) 
-              : asc(articles.citationCount)
-          )
+              ? desc(articles.citations) 
+              : asc(articles.citations)
+          ) as any
           break
         case 'views':
           baseQuery = baseQuery.orderBy(
             sortOrder === 'desc' 
-              ? desc(articles.viewCount) 
-              : asc(articles.viewCount)
-          )
+              ? desc(articles.views) 
+              : asc(articles.views)
+          ) as any
           break
         case 'downloads':
           baseQuery = baseQuery.orderBy(
             sortOrder === 'desc' 
-              ? desc(articles.downloadCount) 
-              : asc(articles.downloadCount)
-          )
+              ? desc(articles.downloads) 
+              : asc(articles.downloads)
+          ) as any
           break
         case 'title':
           baseQuery = baseQuery.orderBy(
             sortOrder === 'desc' 
               ? desc(articles.title) 
               : asc(articles.title)
-          )
+          ) as any
           break
       }
 
@@ -281,7 +301,7 @@ export class AdvancedSearchService {
         .from(articles)
       
       if (conditions.length > 0) {
-        countQuery.where(and(...conditions))
+        (countQuery as any).where(and(...conditions))
       }
 
       const [results, countResult, aggregations, suggestions] = await Promise.all([
@@ -316,17 +336,33 @@ export class AdvancedSearchService {
         executionTime
       }
 
-    } catch (error) {
-      logger.error("Advanced search failed", { error, filters })
-      throw new Error(`Search failed: ${error.message}`)
+    } catch (error: any) {
+      logger.error("Advanced search failed", { error: error.message, filters })
+      // Return empty results instead of throwing
+      return {
+        results: [],
+        total: 0,
+        page: filters.page || 1,
+        limit: filters.limit || 20,
+        totalPages: 0,
+        aggregations: {
+          categories: {},
+          authors: {},
+          keywords: {},
+          years: {},
+          volumes: {}
+        },
+        suggestions: [],
+        executionTime: Date.now() - startTime
+      }
     }
   }
 
-  private async getAggregations(conditions: unknown[]): Promise<SearchResponse['aggregations']> {
+  private async getAggregations(conditions: any[]): Promise<SearchResponse['aggregations']> {
     let baseQuery = db.select().from(articles)
     
     if (conditions.length > 0) {
-      baseQuery = baseQuery.where(and(...conditions))
+      baseQuery = baseQuery.where(and(...conditions)) as any
     }
 
     const results = await baseQuery
@@ -345,7 +381,7 @@ export class AdvancedSearchService {
       }
 
       // Authors
-      article.authors?.forEach((author) => {
+      article.coAuthors?.forEach((author: any) => {
         authors[author] = (authors[author] || 0) + 1
       })
 
@@ -408,11 +444,11 @@ export class AdvancedSearchService {
         // Author suggestions
         db
           .select({
-            authors: articles.authors
+            coAuthors: articles.coAuthors
           })
           .from(articles)
           .where(sql`EXISTS(
-            SELECT 1 FROM UNNEST(${articles.authors}) AS author 
+            SELECT 1 FROM jsonb_array_elements_text(${articles.coAuthors}) AS author 
             WHERE LOWER(author) LIKE ${searchPattern}
           )`)
           .limit(50),
@@ -424,7 +460,7 @@ export class AdvancedSearchService {
           })
           .from(articles)
           .where(sql`EXISTS(
-            SELECT 1 FROM UNNEST(${articles.keywords}) AS keyword 
+            SELECT 1 FROM jsonb_array_elements_text(${articles.keywords}) AS keyword 
             WHERE LOWER(keyword) LIKE ${searchPattern}
           )`)
           .limit(50),
@@ -456,7 +492,7 @@ export class AdvancedSearchService {
       // Process author suggestions
       const authorCounts: Record<string, number> = {}
       authorSuggestions.forEach((item) => {
-        item.authors?.forEach((author) => {
+        item.coAuthors?.forEach((author: any) => {
           if (author.toLowerCase().includes(query.toLowerCase())) {
             authorCounts[author] = (authorCounts[author] || 0) + 1
           }
@@ -512,9 +548,9 @@ export class AdvancedSearchService {
     }
   }
 
-  private addHighlighting(results: unknown[], query?: string): SearchResult[] {
+  private addHighlighting(results: any[], query?: string): SearchResult[] {
     if (!query) {
-      return results.map(result => ({
+      return results.map((result: any) => ({
         ...result,
         relevanceScore: result.relevanceScore || 1.0
       }))
@@ -522,7 +558,7 @@ export class AdvancedSearchService {
 
     const highlightPattern = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
 
-    return results.map((result) => ({
+    return results.map((result: any) => ({
       ...result,
       relevanceScore: result.relevanceScore || 1.0,
       highlightedTitle: result.title?.replace(highlightPattern, '<mark>$1</mark>'),

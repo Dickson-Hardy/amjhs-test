@@ -1,0 +1,67 @@
+{
+  "id": "academic-journal-env",
+  "name": "Academic Journal Development Environment",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "description": "Base URL for the Next.js development server",
+      "enabled": true
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "description": "JWT authentication token (will be set after login)",
+      "enabled": true
+    },
+    {
+      "key": "articleId",
+      "value": "sample-article-id",
+      "description": "Sample article ID for testing",
+      "enabled": true
+    },
+    {
+      "key": "submissionId",
+      "value": "sample-submission-id",
+      "description": "Sample submission ID for workflow testing",
+      "enabled": true
+    },
+    {
+      "key": "reviewId",
+      "value": "sample-review-id",
+      "description": "Sample review ID for peer review testing",
+      "enabled": true
+    },
+    {
+      "key": "manuscriptId",
+      "value": "sample-manuscript-id",
+      "description": "Sample manuscript ID for review assignment",
+      "enabled": true
+    },
+    {
+      "key": "reviewerId1",
+      "value": "reviewer-1-id",
+      "description": "First reviewer ID for testing",
+      "enabled": true
+    },
+    {
+      "key": "reviewerId2",
+      "value": "reviewer-2-id",
+      "description": "Second reviewer ID for testing",
+      "enabled": true
+    },
+    {
+      "key": "userId",
+      "value": "test-user-id",
+      "description": "Test user ID",
+      "enabled": true
+    },
+    {
+      "key": "testEmail",
+      "value": "test@example.com",
+      "description": "Test email address",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment"
+}

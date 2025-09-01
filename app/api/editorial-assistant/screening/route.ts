@@ -5,7 +5,7 @@ import { EditorialAssistantService } from "@/lib/workflow"
 import { logError } from "@/lib/logger"
 import { z } from "zod"
 import { db } from "@/lib/db"
-import { submissions } from "@/lib/db/schema"
+import { submissions, articles, users } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
 // Screening data validation schema
@@ -16,7 +16,18 @@ const screeningSchema = z.object({
     plagiarismCheck: z.boolean(),
     formatCompliance: z.boolean(),
     ethicalCompliance: z.boolean(),
-    notes: z.string().optional()
+    languageQuality: z.boolean(),
+    technicalQuality: z.boolean().optional().default(false),
+    scopeAlignment: z.boolean().optional().default(false),
+    originalityCheck: z.boolean().optional().default(false),
+    dataAvailability: z.boolean().optional().default(false),
+    statisticalSoundness: z.boolean().optional().default(false),
+    notes: z.string().optional().default(""),
+    overallAssessment: z.string().optional().default(""),
+    qualityScore: z.number().min(0).max(100).optional().default(0),
+    completenessScore: z.number().min(0).max(100).optional().default(0),
+    identifiedIssues: z.array(z.string()).optional().default([]),
+    requiredRevisions: z.array(z.string()).optional().default([])
   })
 })
 
@@ -98,28 +109,137 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Submission ID required" }, { status: 400 })
     }
 
-    // Get submission details for screening
-    const submission = await db.query.submissions.findFirst({
-      where: eq(submissions.id, submissionId),
-      with: {
-        article: true,
-        statusHistory: true
-      }
-    })
+    // Get comprehensive submission details with joins
+    const result = await db
+      .select({
+        // Submission fields
+        submissionId: submissions.id,
+        submissionStatus: submissions.status,
+        submissionCreatedAt: submissions.createdAt,
+        submissionUpdatedAt: submissions.updatedAt,
+        statusHistory: submissions.statusHistory,
+        submittedAt: submissions.submittedAt,
+        
+        // Article fields
+        articleId: articles.id,
+        title: articles.title,
+        abstract: articles.abstract,
+        content: articles.content,
+        keywords: articles.keywords,
+        category: articles.category,
+        coAuthors: articles.coAuthors,
+        files: articles.files,
+        doi: articles.doi,
+        volume: articles.volume,
+        issue: articles.issue,
+        pages: articles.pages,
+        publishedDate: articles.publishedDate,
+        submittedDate: articles.submittedDate,
+        reviewerIds: articles.reviewerIds,
+        views: articles.views,
+        downloads: articles.downloads,
+        citations: articles.citations,
+        metadata: articles.metadata,
+        
+        // Author fields
+        authorId: users.id,
+        authorName: users.name,
+        authorEmail: users.email,
+        authorAffiliation: users.affiliation,
+        authorOrcid: users.orcid,
+        authorBio: users.bio,
+        authorExpertise: users.expertise
+      })
+      .from(submissions)
+      .leftJoin(articles, eq(submissions.articleId, articles.id))
+      .leftJoin(users, eq(submissions.authorId, users.id))
+      .where(eq(submissions.id, submissionId))
+      .limit(1)
+
+    const submission = result[0]
 
     if (!submission) {
       return NextResponse.json({ error: "Submission not found" }, { status: 404 })
     }
 
+    // Format the response with all manuscript details
+    const manuscriptData = {
+      id: submission.submissionId,
+      status: submission.submissionStatus,
+      createdAt: submission.submissionCreatedAt,
+      updatedAt: submission.submissionUpdatedAt,
+      statusHistory: submission.statusHistory || [],
+      submittedAt: submission.submittedAt,
+      
+      // Article information
+      title: submission.title || 'Untitled Submission',
+      abstract: submission.abstract || '',
+      content: submission.content || '',
+      keywords: submission.keywords || [],
+      category: submission.category || 'Not specified',
+      doi: submission.doi,
+      volume: submission.volume,
+      issue: submission.issue,
+      pages: submission.pages,
+      publishedDate: submission.publishedDate,
+      submittedDate: submission.submittedDate,
+      views: submission.views || 0,
+      downloads: submission.downloads || 0,
+      citations: submission.citations || 0,
+      
+      // Author information
+      authorId: submission.authorId,
+      authorName: submission.authorName,
+      authorEmail: submission.authorEmail,
+      authorAffiliation: submission.authorAffiliation,
+      authorOrcid: submission.authorOrcid,
+      authorBio: submission.authorBio,
+      authorExpertise: submission.authorExpertise || [],
+      
+      // Co-authors
+      coAuthors: submission.coAuthors || [],
+      
+      // Files and attachments
+      files: submission.files || [],
+      manuscript: submission.files && submission.files.length > 0 ? {
+        filename: submission.files[0].name || 'manuscript.pdf',
+        filesize: 2500000, // Default size if not available
+        uploadedAt: submission.submittedDate || submission.submissionCreatedAt,
+        url: submission.files[0].url
+      } : null,
+      
+      supplementaryFiles: submission.files && submission.files.length > 1 ? 
+        submission.files.slice(1).map((file: any) => ({
+          filename: file.name || 'supplement.pdf',
+          filesize: 1000000, // Default size
+          type: file.type || 'application/pdf',
+          uploadedAt: submission.submittedDate || submission.submissionCreatedAt,
+          url: file.url
+        })) : [],
+      
+      // Extract metadata for ethics, funding, etc. if available
+      ethics: submission.metadata?.ethics || {
+        hasEthicsApproval: false,
+        hasConflictOfInterest: false,
+        hasInformedConsent: false
+      },
+      
+      funding: submission.metadata?.funding || {
+        hasFunding: false
+      },
+      
+      // Cover letter and reviewer suggestions from metadata
+      coverLetter: submission.metadata?.coverLetter || '',
+      suggestedReviewers: submission.metadata?.suggestedReviewers || [],
+      excludedReviewers: submission.metadata?.excludedReviewers || [],
+      
+      // Additional metadata
+      submissionType: submission.metadata?.submissionType || 'Not specified'
+    }
+
     return NextResponse.json({
       success: true,
-      submission: {
-        id: submission.id,
-        status: submission.status,
-        article: submission.article,
-        statusHistory: submission.statusHistory,
-        createdAt: submission.createdAt
-      }
+      submission: manuscriptData
     })
 
   } catch (error) {

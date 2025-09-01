@@ -14,13 +14,15 @@ export default function ConditionalLayout({
 }) {
   const pathname = usePathname()
   
-  // Routes that should not show header/footer (internal application routes)
+  // Routes that should not show header/footer (internal application routes and auth pages)
   const isInternalRoute = pathname?.startsWith('/dashboard') || 
                          pathname?.startsWith('/admin') || 
                          pathname?.startsWith('/editor') || 
                          pathname?.startsWith('/author') ||
                          pathname?.startsWith('/reviewer') ||
-                         pathname?.startsWith('/submit')
+                         pathname?.startsWith('/submit') ||
+                         pathname?.startsWith('/auth/') ||
+                         pathname?.startsWith('/editorial-assistant/login')
 
   if (isInternalRoute) {
     // Clean layout for internal application pages

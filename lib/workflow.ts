@@ -1518,6 +1518,7 @@ export class EditorialAssistantService {
       plagiarismCheck: boolean
       formatCompliance: boolean
       ethicalCompliance: boolean
+      languageQuality?: boolean
       notes?: string
     }
   ): Promise<{ success: boolean; message: string; nextStatus?: WorkflowStatus }> {
@@ -1545,15 +1546,32 @@ export class EditorialAssistantService {
       const allChecksPass = screeningData.fileCompleteness && 
                            screeningData.plagiarismCheck && 
                            screeningData.formatCompliance && 
-                           screeningData.ethicalCompliance
+                           screeningData.ethicalCompliance &&
+                           (screeningData.languageQuality !== false)
+
+      // Calculate quality scores
+      const completenessScore = this.calculateCompletenessScore(screeningData)
+      const qualityScore = this.calculateOverallQualityScore(screeningData)
+      
+      // Determine screening decision
+      const screeningDecision = allChecksPass ? "pass" : "revision_required"
+      
+      // Store screening data in submission status history instead of separate table
+      const screeningNotes = `Screening completed: ${allChecksPass ? 'PASSED' : 'FAILED'}\n` +
+        `File Completeness: ${screeningData.fileCompleteness ? 'PASS' : 'FAIL'}\n` +
+        `Plagiarism Check: ${screeningData.plagiarismCheck ? 'PASS' : 'FAIL'}\n` +
+        `Format Compliance: ${screeningData.formatCompliance ? 'PASS' : 'FAIL'}\n` +
+        `Ethical Compliance: ${screeningData.ethicalCompliance ? 'PASS' : 'FAIL'}\n` +
+        `Quality Score: ${qualityScore}%\n` +
+        (screeningData.notes ? `Notes: ${screeningData.notes}` : '')
 
       if (allChecksPass) {
-        // Move to associate editor assignment stage
+        // Move to under_review stage (simplified workflow)
         await this.updateSubmissionStatus(
           submissionId,
-          "associate_editor_assignment",
+          "under_review",
           editorialAssistantId,
-          "Initial screening completed - ready for associate editor assignment"
+          screeningNotes + "\n\nManuscript approved for peer review"
         )
 
         // Notify editorial assistant of successful screening
@@ -1567,8 +1585,8 @@ export class EditorialAssistantService {
 
         return {
           success: true,
-          message: "Screening completed successfully",
-          nextStatus: "associate_editor_assignment"
+          message: "Screening completed successfully - manuscript approved for review",
+          nextStatus: "under_review"
         }
       } else {
         // Return to author for revision
@@ -1576,20 +1594,20 @@ export class EditorialAssistantService {
           submissionId,
           "revision_requested",
           editorialAssistantId,
-          `Initial screening failed: ${screeningData.notes || "Please address the identified issues"}`
+          screeningNotes + "\n\n" + this.generateAuthorFeedback(screeningData)
         )
 
         // Notify author of required revisions
-              const article = await db.select({
-        id: articles.id,
-        title: articles.title,
-        authorId: articles.authorId,
-        status: articles.status
-      })
-      .from(articles)
-      .where(eq(articles.id, submission.articleId!))
-      .limit(1)
-      .then(results => results[0] || null)
+        const article = await db.select({
+          id: articles.id,
+          title: articles.title,
+          authorId: articles.authorId,
+          status: articles.status
+        })
+        .from(articles)
+        .where(eq(articles.id, submission.articleId!))
+        .limit(1)
+        .then(results => results[0] || null)
 
         if (article) {
           await this.createSystemNotification(
@@ -1612,6 +1630,83 @@ export class EditorialAssistantService {
       logger.error("Error in initial screening:", { operation: 'performInitialScreening', submissionId, error })
       return { success: false, message: "Screening failed due to system error" }
     }
+  }
+
+  /**
+   * Calculate completeness score based on screening criteria
+   */
+  private calculateCompletenessScore(screeningData: {
+    fileCompleteness: boolean
+    plagiarismCheck: boolean
+    formatCompliance: boolean
+    ethicalCompliance: boolean
+    languageQuality?: boolean
+  }): number {
+    let score = 0
+    let totalCriteria = 5
+    
+    if (screeningData.fileCompleteness) score += 20
+    if (screeningData.plagiarismCheck) score += 20
+    if (screeningData.formatCompliance) score += 20
+    if (screeningData.ethicalCompliance) score += 20
+    if (screeningData.languageQuality) score += 20
+    
+    return score
+  }
+
+  /**
+   * Calculate overall quality score
+   */
+  private calculateOverallQualityScore(screeningData: {
+    fileCompleteness: boolean
+    plagiarismCheck: boolean
+    formatCompliance: boolean
+    ethicalCompliance: boolean
+    languageQuality?: boolean
+  }): number {
+    // For now, same as completeness score, but could be more sophisticated
+    return this.calculateCompletenessScore(screeningData)
+  }
+
+  /**
+   * Generate feedback for authors based on screening results
+   */
+  private generateAuthorFeedback(screeningData: {
+    fileCompleteness: boolean
+    plagiarismCheck: boolean
+    formatCompliance: boolean
+    ethicalCompliance: boolean
+    languageQuality?: boolean
+    notes?: string
+  }): string {
+    const issues: string[] = []
+    
+    if (!screeningData.fileCompleteness) {
+      issues.push("- Please ensure all required files are complete and properly formatted")
+    }
+    if (!screeningData.plagiarismCheck) {
+      issues.push("- Plagiarism check indicates potential issues that need to be addressed")
+    }
+    if (!screeningData.formatCompliance) {
+      issues.push("- Manuscript formatting does not comply with journal guidelines")
+    }
+    if (!screeningData.ethicalCompliance) {
+      issues.push("- Ethical compliance requirements need to be met")
+    }
+    if (screeningData.languageQuality === false) {
+      issues.push("- Language quality needs improvement for clarity and readability")
+    }
+    
+    let feedback = "The following issues were identified during initial screening:\n\n"
+    feedback += issues.join("\n")
+    
+    if (screeningData.notes) {
+      feedback += "\n\nAdditional notes:\n" + screeningData.notes
+    }
+    
+    feedback += "\n\nPlease address these issues and resubmit your manuscript."
+    
+    return feedback
   }
 
   /**

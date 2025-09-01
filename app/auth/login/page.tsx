@@ -7,12 +7,10 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Wifi, Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Stethoscope } from "lucide-react"
 import { useToast } from "@/components/toast-provider"
 import { getPostAuthRedirect } from "@/lib/role-utils"
-import Image from "next/image"
 
 export default function LoginPage() {
   const { success, error: showErrorToast } = useToast()
@@ -77,122 +75,141 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center space-x-3">
-            <div className="bg-white p-2 rounded-lg border shadow-sm">
-              <Image
-                src="/logo-amhsj.png"
-                alt="AMHSJ Logo"
-                width={32}
-                height={32}
-                className="object-contain"
-              />
-            </div>
-            <div>
-              <div className="font-bold text-2xl text-gray-800">AMHSJ</div>
-              <div className="text-sm text-gray-600 flex items-center">
-                <Wifi className="h-3 w-3 mr-1" />
-                Medical Research Journal
+    <div className="min-h-screen flex">
+      {/* Left Side - Purple Gradient with Curves */}
+      <div className="flex-1 relative overflow-hidden bg-gradient-to-br from-purple-600 via-purple-700 to-purple-800">
+        {/* Flowing Curves Background */}
+        <div className="absolute inset-0">
+          <svg className="absolute w-full h-full" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="rgba(147, 51, 234, 0.3)" />
+                <stop offset="100%" stopColor="rgba(168, 85, 247, 0.5)" />
+              </linearGradient>
+              <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="rgba(168, 85, 247, 0.4)" />
+                <stop offset="100%" stopColor="rgba(196, 181, 253, 0.3)" />
+              </linearGradient>
+            </defs>
+            
+            {/* Flowing curves */}
+            <path d="M0,200 Q200,100 400,200 T800,200 L800,400 Q600,300 400,400 T0,400 Z" fill="url(#gradient1)" />
+            <path d="M0,400 Q200,300 400,400 T800,400 L800,600 Q600,500 400,600 T0,600 Z" fill="url(#gradient2)" />
+            <path d="M0,600 Q200,500 400,600 T800,600 L800,800 L0,800 Z" fill="rgba(147, 51, 234, 0.2)" />
+          </svg>
+        </div>
+        
+        {/* Logo and branding on left side */}
+        <div className="relative z-10 flex flex-col justify-center items-start p-16 h-full text-white">
+          <div className="mb-8">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                <Stethoscope className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">AMHSJ</div>
+                <div className="text-lg font-semibold">MEDICAL RESEARCH</div>
+                <div className="text-lg font-semibold">JOURNAL</div>
+                <div className="text-sm opacity-90 mt-1">Advanced Healthcare Sciences</div>
               </div>
             </div>
-          </Link>
+          </div>
         </div>
+      </div>
 
-        <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
-            <CardDescription className="text-center">
-              Sign in to your AMHSJ account
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Right Side - White Login Form */}
+      <div className="flex-1 flex items-center justify-center bg-white p-8">
+        <div className="w-full max-w-md">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+          </div>
+
+          <div className="space-y-6">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                  Email <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="email"
                   type="email"
+                  placeholder="Enter email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="john.smith@university.edu"
+                  className="h-12 border-gray-300 focus:border-purple-500 focus:ring-purple-500 rounded-lg"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  Password <span className="text-red-500">*</span>
+                </Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
+                    placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    placeholder="••••••••"
+                    className="h-12 pr-12 border-gray-300 focus:border-purple-500 focus:ring-purple-500 rounded-lg"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    className="absolute right-0 top-0 h-12 px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
+                      <EyeOff className="h-4 w-4 text-gray-500" />
                     ) : (
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-4 w-4 text-gray-500" />
                     )}
                   </Button>
                 </div>
               </div>
 
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+              <div className="text-right">
+                <Link 
+                  href="/auth/forgot-password" 
+                  className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                 disabled={isLoading}
+                className="w-full h-12 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg text-base"
               >
-                {isLoading ? "Signing In..." : "Sign In"}
+                {isLoading ? "Signing In..." : "Login"}
               </Button>
-            </form>            <div className="mt-6 text-center text-sm">
-              <Link 
-                href="/auth/forgot-password" 
-                className="text-indigo-600 hover:text-indigo-700 font-medium"
-              >
-                Forgot your password?
-              </Link>
-            </div>
+            </form>
 
-            <div className="mt-4 text-center text-sm">
-              <span className="text-gray-600">Don't have an account? </span>
+            <div className="text-center text-sm text-gray-600">
+              <span>Don't have an account? </span>
               <Link 
                 href="/auth/signup" 
-                className="text-indigo-600 hover:text-indigo-700 font-medium"
+                className="text-purple-600 hover:text-purple-700 font-medium"
               >
                 Sign up
               </Link>
             </div>
-          </CardContent>
-        </Card>
 
-        <p className="mt-6 text-xs text-center text-gray-600">
-          By signing in, you agree to our{" "}
-          <Link href="/terms" className="text-indigo-600 hover:text-indigo-700">
-            Terms of Service
-          </Link>{" "}
-          and{" "}
-          <Link href="/privacy" className="text-indigo-600 hover:text-indigo-700">
-            Privacy Policy
-          </Link>
-        </p>
+            <div className="text-center text-sm text-gray-500 mt-8">
+              ©2025 AMHSJ
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

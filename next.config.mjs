@@ -10,7 +10,6 @@ const nextConfig = {
     // Removed deprecated options:
     // - serverComponentsExternalPackages moved to serverExternalPackages
     // - instrumentationHook removed as instrumentation.js is available by default
-    bodySizeLimit: '100mb', // Allow large file uploads
   },
   eslint: {
     ignoreDuringBuilds: true,

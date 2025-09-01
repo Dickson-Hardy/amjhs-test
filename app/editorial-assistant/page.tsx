@@ -20,7 +20,8 @@ import {
   Filter,
   Shield,
   Settings,
-  Bell
+  Bell,
+  Mail
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -97,20 +98,21 @@ export default function EditorialAssistantDashboard() {
     }
   }
 
-  const handleScreening = (manuscriptId: string) => {
+  // Editorial Assistant Workflow Actions
+  const handleInitialScreening = (manuscriptId: string) => {
     router.push(`/editorial-assistant/screening/${manuscriptId}`)
   }
 
-  const handleAssignment = (manuscriptId: string) => {
+  const handleAssociateEditorAssignment = (manuscriptId: string) => {
     router.push(`/editorial-assistant/assignment/${manuscriptId}`)
   }
 
-  const handleCOIQuestionnaire = (manuscriptId: string) => {
-    router.push(`/editorial-assistant/coi/${manuscriptId}`)
+  const handleWorkflowMonitoring = () => {
+    router.push(`/editorial-assistant/workflow-monitoring`)
   }
 
-  const handleTimeLimitManagement = () => {
-    router.push(`/editorial-assistant/time-limits`)
+  const handleDeadlineManagement = () => {
+    router.push(`/editorial-assistant/deadlines`)
   }
 
   const filteredManuscripts = manuscripts.filter(manuscript => {
@@ -125,13 +127,15 @@ export default function EditorialAssistantDashboard() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "submitted":
-        return <Badge variant="secondary">New Submission</Badge>
+        return <Badge className="bg-blue-100 text-blue-800">New Submission</Badge>
       case "editorial_assistant_review":
-        return <Badge variant="default">Under Screening</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800">Screening in Progress</Badge>
       case "associate_editor_assignment":
-        return <Badge variant="outline">Ready for Assignment</Badge>
+        return <Badge className="bg-purple-100 text-purple-800">Ready for Assignment</Badge>
+      case "associate_editor_review":
+        return <Badge className="bg-indigo-100 text-indigo-800">Editor Review</Badge>
       case "revision_requested":
-        return <Badge variant="destructive">Revision Required</Badge>
+        return <Badge className="bg-amber-100 text-amber-800">Revision Requested</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
@@ -165,8 +169,8 @@ export default function EditorialAssistantDashboard() {
   return (
     <RouteGuard allowedRoles={["editorial-assistant", "managing-editor", "editor-in-chief", "admin"]}>
       <EditorLayout>
-        <div className="space-y-8">
-          <div className="mb-8">
+        <div className="space-y-4">
+          <div className="mb-4">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Editorial Assistant Dashboard
             </h1>
@@ -176,7 +180,7 @@ export default function EditorialAssistantDashboard() {
           </div>
 
       {/* Role Switcher */}
-      <div className="mb-8">
+      <div className="mb-4">
         <RoleSwitcher onRoleChange={(newRole) => {
           // Refresh the page to show new role-based content
           window.location.reload()
@@ -184,16 +188,16 @@ export default function EditorialAssistantDashboard() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Screening</CardTitle>
+            <CardTitle className="text-sm font-medium">Pending Initial Screening</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalPending}</div>
             <p className="text-xs text-muted-foreground">
-              Manuscripts awaiting review
+              New submissions awaiting technical review
             </p>
           </CardContent>
         </Card>
@@ -206,45 +210,48 @@ export default function EditorialAssistantDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.screenedToday}</div>
             <p className="text-xs text-muted-foreground">
-              Completed screenings
+              Completed technical assessments
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Time</CardTitle>
+            <CardTitle className="text-sm font-medium">Avg. Processing Time</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.averageScreeningTime}h</div>
             <p className="text-xs text-muted-foreground">
-              Per manuscript
+              Per initial screening
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
+            <CardTitle className="text-sm font-medium">Overdue Reviews</CardTitle>
             <AlertCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{stats.overdueCount}</div>
             <p className="text-xs text-muted-foreground">
-              Past deadline
+              Past processing deadline
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Manuscript Management */}
+      {/* Editorial Workflow Management */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Manuscript Management
+            <Shield className="h-5 w-5" />
+            Editorial Assistant Workflow Management
           </CardTitle>
+          <p className="text-sm text-gray-600">
+            Manage technical screening, editor assignments, and workflow monitoring
+          </p>
         </CardHeader>
         <CardContent>
           {/* Filters */}
@@ -267,9 +274,9 @@ export default function EditorialAssistantDashboard() {
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="submitted">New Submission</SelectItem>
-                <SelectItem value="editorial_assistant_review">Under Screening</SelectItem>
+                <SelectItem value="editorial_assistant_review">Screening in Progress</SelectItem>
                 <SelectItem value="associate_editor_assignment">Ready for Assignment</SelectItem>
-                <SelectItem value="revision_requested">Revision Required</SelectItem>
+                <SelectItem value="revision_requested">Revision Requested</SelectItem>
               </SelectContent>
             </Select>
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
@@ -285,17 +292,36 @@ export default function EditorialAssistantDashboard() {
             </Select>
           </div>
 
-          {/* Manuscript List */}
-          <Tabs defaultValue="pending" className="w-full">
+          {/* Editorial Assistant Workflow Tabs */}
+          <Tabs defaultValue="initial-screening" className="w-full">
             <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="pending">Pending Screening ({manuscripts.filter(m => m.status === "submitted").length})</TabsTrigger>
-              <TabsTrigger value="screening">Under Screening ({manuscripts.filter(m => m.status === "editorial_assistant_review").length})</TabsTrigger>
-              <TabsTrigger value="assignment">Ready for Assignment ({manuscripts.filter(m => m.status === "associate_editor_assignment").length})</TabsTrigger>
-              <TabsTrigger value="coi">COI Management</TabsTrigger>
-              <TabsTrigger value="time-limits">Time Limits</TabsTrigger>
+              <TabsTrigger value="initial-screening">
+                Initial Screening ({manuscripts.filter(m => m.status === "submitted").length})
+              </TabsTrigger>
+              <TabsTrigger value="in-progress">
+                In Progress ({manuscripts.filter(m => m.status === "editorial_assistant_review").length})
+              </TabsTrigger>
+              <TabsTrigger value="editor-assignment">
+                Editor Assignment ({manuscripts.filter(m => m.status === "associate_editor_assignment").length})
+              </TabsTrigger>
+              <TabsTrigger value="workflow-monitoring">
+                Workflow Monitoring
+              </TabsTrigger>
+              <TabsTrigger value="administrative">
+                Administrative
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="pending" className="space-y-4">
+            {/* Initial Screening - New Submissions */}
+            <TabsContent value="initial-screening" className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <h4 className="font-semibold text-blue-800 mb-2">Initial Technical Screening</h4>
+                <p className="text-blue-700 text-sm">
+                  Perform technical assessment including format compliance, file completeness, 
+                  plagiarism checks, and ethical compliance before forwarding to associate editors.
+                </p>
+              </div>
+              
               {filteredManuscripts
                 .filter(m => m.status === "submitted")
                 .map((manuscript) => (
@@ -305,6 +331,7 @@ export default function EditorialAssistantDashboard() {
                         <div className="flex items-center gap-2 mb-2">
                           <h3 className="font-semibold text-lg">{manuscript.title}</h3>
                           {getPriorityIcon(manuscript.priority)}
+                          <Badge variant="outline" className="ml-auto">Technical Review Required</Badge>
                         </div>
                         <p className="text-gray-600 mb-2">
                           <strong>Authors:</strong> {manuscript.authors.join(", ")}
@@ -318,11 +345,11 @@ export default function EditorialAssistantDashboard() {
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          onClick={() => handleScreening(manuscript.id)}
+                          onClick={() => handleInitialScreening(manuscript.id)}
                           className="bg-blue-600 hover:bg-blue-700"
                         >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Screen Manuscript
+                          <Shield className="h-4 w-4 mr-2" />
+                          Begin Screening
                         </Button>
                       </div>
                     </div>
@@ -330,7 +357,16 @@ export default function EditorialAssistantDashboard() {
                 ))}
             </TabsContent>
 
-            <TabsContent value="screening" className="space-y-4">
+            {/* In Progress Screenings */}
+            <TabsContent value="in-progress" className="space-y-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <h4 className="font-semibold text-yellow-800 mb-2">Screening in Progress</h4>
+                <p className="text-yellow-700 text-sm">
+                  Complete technical assessments and decide whether manuscripts should proceed 
+                  to associate editor assignment or be returned for revision.
+                </p>
+              </div>
+              
               {filteredManuscripts
                 .filter(m => m.status === "editorial_assistant_review")
                 .map((manuscript) => (
@@ -340,6 +376,7 @@ export default function EditorialAssistantDashboard() {
                         <div className="flex items-center gap-2 mb-2">
                           <h3 className="font-semibold text-lg">{manuscript.title}</h3>
                           {getPriorityIcon(manuscript.priority)}
+                          <Badge className="bg-yellow-100 text-yellow-800 ml-auto">Screening in Progress</Badge>
                         </div>
                         <p className="text-gray-600 mb-2">
                           <strong>Authors:</strong> {manuscript.authors.join(", ")}
@@ -353,7 +390,7 @@ export default function EditorialAssistantDashboard() {
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          onClick={() => handleScreening(manuscript.id)}
+                          onClick={() => handleInitialScreening(manuscript.id)}
                           variant="outline"
                         >
                           <Eye className="h-4 w-4 mr-2" />
@@ -365,7 +402,16 @@ export default function EditorialAssistantDashboard() {
                 ))}
             </TabsContent>
 
-            <TabsContent value="assignment" className="space-y-4">
+            {/* Associate Editor Assignment */}
+            <TabsContent value="editor-assignment" className="space-y-4">
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                <h4 className="font-semibold text-purple-800 mb-2">Associate Editor Assignment</h4>
+                <p className="text-purple-700 text-sm">
+                  Assign manuscripts that have passed technical screening to appropriate associate editors 
+                  based on expertise, workload, and availability.
+                </p>
+              </div>
+              
               {filteredManuscripts
                 .filter(m => m.status === "associate_editor_assignment")
                 .map((manuscript) => (
@@ -375,6 +421,7 @@ export default function EditorialAssistantDashboard() {
                         <div className="flex items-center gap-2 mb-2">
                           <h3 className="font-semibold text-lg">{manuscript.title}</h3>
                           {getPriorityIcon(manuscript.priority)}
+                          <Badge className="bg-purple-100 text-purple-800 ml-auto">Ready for Assignment</Badge>
                         </div>
                         <p className="text-gray-600 mb-2">
                           <strong>Authors:</strong> {manuscript.authors.join(", ")}
@@ -383,13 +430,13 @@ export default function EditorialAssistantDashboard() {
                           <strong>Category:</strong> {manuscript.category}
                         </p>
                         <p className="text-gray-500 text-sm">
-                          Ready for assignment: {new Date(manuscript.submittedAt).toLocaleDateString()}
+                          Screening completed: {new Date(manuscript.submittedAt).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          onClick={() => handleAssignment(manuscript.id)}
-                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => handleAssociateEditorAssignment(manuscript.id)}
+                          className="bg-purple-600 hover:bg-purple-700"
                         >
                           <Users className="h-4 w-4 mr-2" />
                           Assign Editor
@@ -400,41 +447,72 @@ export default function EditorialAssistantDashboard() {
                 ))}
             </TabsContent>
 
-            <TabsContent value="coi" className="space-y-4">
+            {/* Workflow Monitoring */}
+            <TabsContent value="workflow-monitoring" className="space-y-4">
               <div className="text-center py-8">
-                <Shield className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Conflict of Interest Management</h3>
+                <Settings className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Workflow Monitoring & Administration</h3>
                 <p className="text-gray-600 mb-6">
-                  Monitor and manage conflict of interest declarations from associate editors and reviewers.
+                  Monitor editorial workflow progress, track deadlines, and ensure efficient manuscript processing.
                 </p>
-                <div className="flex justify-center gap-4">
-                  <Button onClick={() => router.push('/editorial-assistant/coi/overview')}>
-                    <Shield className="h-4 w-4 mr-2" />
-                    View COI Overview
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                  <Button 
+                    onClick={handleWorkflowMonitoring}
+                    variant="outline" 
+                    className="p-6 h-auto flex-col"
+                  >
+                    <Bell className="h-8 w-8 mb-2 text-blue-600" />
+                    <span className="font-medium">Workflow Monitoring</span>
+                    <span className="text-sm text-gray-500">Track progress & bottlenecks</span>
                   </Button>
-                  <Button variant="outline" onClick={() => router.push('/editorial-assistant/coi/reports')}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    COI Reports
+                  <Button 
+                    onClick={handleDeadlineManagement}
+                    variant="outline" 
+                    className="p-6 h-auto flex-col"
+                  >
+                    <Clock className="h-8 w-8 mb-2 text-orange-600" />
+                    <span className="font-medium">Deadline Management</span>
+                    <span className="text-sm text-gray-500">Monitor & enforce timelines</span>
                   </Button>
                 </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="time-limits" className="space-y-4">
+            {/* Administrative Tasks */}
+            <TabsContent value="administrative" className="space-y-4">
               <div className="text-center py-8">
-                <Clock className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Time Limit Management</h3>
+                <FileText className="h-16 w-16 text-green-600 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Administrative Support</h3>
                 <p className="text-gray-600 mb-6">
-                  Configure and monitor workflow stage deadlines and automated reminders.
+                  Handle administrative tasks including communication templates, reports, and system maintenance.
                 </p>
-                <div className="flex justify-center gap-4">
-                  <Button onClick={handleTimeLimitManagement}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Configure Time Limits
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+                  <Button 
+                    onClick={() => router.push('/editorial-assistant/communication')}
+                    variant="outline" 
+                    className="p-6 h-auto flex-col"
+                  >
+                    <Mail className="h-8 w-8 mb-2 text-blue-600" />
+                    <span className="font-medium">Communication</span>
+                    <span className="text-sm text-gray-500">Notifications & updates</span>
                   </Button>
-                  <Button variant="outline" onClick={() => router.push('/editorial-assistant/time-limits/monitoring')}>
-                    <Bell className="h-4 w-4 mr-2" />
-                    Monitor Deadlines
+                  <Button 
+                    onClick={() => router.push('/editorial-assistant/reports')}
+                    variant="outline" 
+                    className="p-6 h-auto flex-col"
+                  >
+                    <FileText className="h-8 w-8 mb-2 text-green-600" />
+                    <span className="font-medium">Reports</span>
+                    <span className="text-sm text-gray-500">Generate workflow reports</span>
+                  </Button>
+                  <Button 
+                    onClick={() => router.push('/editorial-assistant/settings')}
+                    variant="outline" 
+                    className="p-6 h-auto flex-col"
+                  >
+                    <Settings className="h-8 w-8 mb-2 text-gray-600" />
+                    <span className="font-medium">Settings</span>
+                    <span className="text-sm text-gray-500">System configuration</span>
                   </Button>
                 </div>
               </div>

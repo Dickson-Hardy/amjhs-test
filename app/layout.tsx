@@ -9,6 +9,7 @@ import ConditionalLayout from "@/components/conditional-layout"
 import RegisterServiceWorker from "@/app/register-sw"
 import SiteFooter from "@/components/site-footer"
 
+
 // Initialize backup scheduler in production
 if (typeof window === 'undefined') {
   import('@/lib/backup').then(({ initializeBackupScheduler }) => {

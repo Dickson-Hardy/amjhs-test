@@ -254,7 +254,7 @@ export function ResponsiveDashboardLayout({
         )}
 
         <main className={cn(
-          "flex-1 h-[calc(100vh-4rem)] overflow-y-auto p-6 bg-amhsj-background",
+          "flex-1 h-[calc(100vh-4rem)] overflow-y-auto p-4 bg-amhsj-background",
           isMobile ? "ml-0 pb-16" : "ml-64"
         )}>
           <div className="max-w-7xl mx-auto">

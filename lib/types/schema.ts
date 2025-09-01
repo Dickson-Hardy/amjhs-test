@@ -20,6 +20,32 @@ export interface ArticleMetadata {
   citations?: number
   downloads?: number
   views?: number
+  // Submission-specific metadata
+  ethics?: {
+    hasEthicsApproval: boolean
+    ethicsApprovalNumber?: string
+    hasConflictOfInterest: boolean
+    conflictDetails?: string
+    hasInformedConsent: boolean
+  }
+  funding?: {
+    hasFunding: boolean
+    fundingSource?: string
+    grantNumber?: string
+  }
+  coverLetter?: string
+  suggestedReviewers?: Array<{
+    name: string
+    email: string
+    affiliation: string
+    expertise?: string
+  }>
+  excludedReviewers?: Array<{
+    name: string
+    email: string
+    reason: string
+  }>
+  submissionType?: string
 }
 
 export interface VolumeMetadata {

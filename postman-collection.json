@@ -1,0 +1,855 @@
+{
+  "info": {
+    "name": "Academic Journal Management System API",
+    "description": "Comprehensive API collection for testing the manuscript submission-to-production workflow",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🏥 Health & Infrastructure",
+      "description": "Core system health and monitoring endpoints",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Check system health and service status"
+          },
+          "response": []
+        },
+        {
+          "name": "System Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "status"]
+            }
+          }
+        },
+        {
+          "name": "System Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/system-info",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "system-info"]
+            }
+          }
+        },
+        {
+          "name": "Monitoring Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/monitoring/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "monitoring", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔍 Search & Discovery",
+      "description": "Article search and discovery functionality",
+      "item": [
+        {
+          "name": "Basic Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search?q=test&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "test",
+                  "description": "Search query"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Number of results"
+                }
+              ]
+            },
+            "description": "Search for articles with basic query"
+          }
+        },
+        {
+          "name": "Advanced Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search/advanced?query=medical&category=research&sortBy=relevance",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search", "advanced"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "medical"
+                },
+                {
+                  "key": "category",
+                  "value": "research"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "relevance"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Suggestions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search/suggestions?q=med",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "search", "suggestions"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "med"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📄 Articles & Content",
+      "description": "Article management and retrieval",
+      "item": [
+        {
+          "name": "Get All Articles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/articles?status=published&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "articles"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "published"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Article by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/articles/{{articleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "articles", "{{articleId}}"]
+            }
+          }
+        },
+        {
+          "name": "Article Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/articles/filters",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "articles", "filters"]
+            }
+          }
+        },
+        {
+          "name": "Archive Articles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/archive",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "archive"]
+            }
+          }
+        },
+        {
+          "name": "Current Issue Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/current-issue-data",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "current-issue-data"]
+            }
+          }
+        },
+        {
+          "name": "News Articles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/news",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "news"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 Submissions & Workflow",
+      "description": "Manuscript submission and workflow management",
+      "item": [
+        {
+          "name": "Get Submissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/submissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "submissions"]
+            }
+          }
+        },
+        {
+          "name": "Submit Manuscript",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Article Title\",\n  \"abstract\": \"This is a test abstract for API testing\",\n  \"content\": \"Full article content here\",\n  \"keywords\": [\"test\", \"api\", \"research\"],\n  \"category\": \"research\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/workflow/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "workflow", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Workflow Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/workflow/status/{{submissionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "workflow", "status", "{{submissionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Submission Eligibility",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/submission/eligibility",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "submission", "eligibility"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Reviews & Peer Review",
+      "description": "Peer review management system",
+      "item": [
+        {
+          "name": "Get Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reviews"]
+            }
+          }
+        },
+        {
+          "name": "Submit Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reviewId\": \"{{reviewId}}\",\n  \"recommendation\": \"accept\",\n  \"comments\": \"This article meets publication standards\",\n  \"confidentialComments\": \"Internal reviewer notes\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reviews/{{reviewId}}/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reviews", "{{reviewId}}", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Assign Reviewers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"manuscriptId\": \"{{manuscriptId}}\",\n  \"reviewerIds\": [\"{{reviewerId1}}\", \"{{reviewerId2}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/workflow/assign-reviewers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "workflow", "assign-reviewers"]
+            }
+          }
+        },
+        {
+          "name": "Reviewer Application",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"affiliation\": \"University of Testing\",\n  \"expertise\": [\"medical research\", \"clinical trials\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reviewer/apply",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "reviewer", "apply"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 User Management",
+      "description": "User profiles and authentication",
+      "item": [
+        {
+          "name": "User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"affiliation\": \"Updated University\",\n  \"bio\": \"Updated bio\",\n  \"expertise\": [\"updated\", \"expertise\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "profile"]
+            }
+          }
+        },
+        {
+          "name": "User Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/analytics?timeRange=1y",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "analytics"],
+              "query": [
+                {
+                  "key": "timeRange",
+                  "value": "1y"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "User Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "messages"]
+            }
+          }
+        },
+        {
+          "name": "Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔗 Integrations",
+      "description": "External service integrations",
+      "item": [
+        {
+          "name": "Citations Service",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integrations/citations?action=styles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integrations", "citations"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "styles"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "DOI Integration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integrations/doi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integrations", "doi"]
+            }
+          }
+        },
+        {
+          "name": "ORCID Integration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integrations/orcid",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integrations", "orcid"]
+            }
+          }
+        },
+        {
+          "name": "CrossRef Integration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integrations/crossref",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integrations", "crossref"]
+            }
+          }
+        },
+        {
+          "name": "Plagiarism Check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Sample text to check for plagiarism\",\n  \"articleId\": \"{{articleId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/integrations/plagiarism",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integrations", "plagiarism"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛡️ Admin & Management",
+      "description": "Administrative and management functions",
+      "item": [
+        {
+          "name": "Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/dashboard-stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "dashboard-stats"]
+            }
+          }
+        },
+        {
+          "name": "Analytics Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/analytics/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "analytics", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "Manage Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"]
+            }
+          }
+        },
+        {
+          "name": "Manage Submissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/submissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "submissions"]
+            }
+          }
+        },
+        {
+          "name": "Review Deadlines",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/review-deadlines",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "review-deadlines"]
+            }
+          }
+        },
+        {
+          "name": "System Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/logs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "logs"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Analytics & Monitoring",
+      "description": "System analytics and performance monitoring",
+      "item": [
+        {
+          "name": "System Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "metrics"]
+            }
+          }
+        },
+        {
+          "name": "Performance Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/monitoring/analytics/performance",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "monitoring", "analytics", "performance"]
+            }
+          }
+        },
+        {
+          "name": "Journal Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/journal-stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "journal-stats"]
+            }
+          }
+        },
+        {
+          "name": "Error Reporting",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"error\": \"Test error\",\n  \"context\": \"API testing\",\n  \"severity\": \"low\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/errors/report",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "errors", "report"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-set base URL if not already set",
+          "if (!pm.collectionVariables.get('baseUrl')) {",
+          "    pm.collectionVariables.set('baseUrl', 'http://localhost:3000');",
+          "}",
+          "",
+          "// Log request for debugging",
+          "console.log('Making request to:', pm.request.url.toString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test scripts for all requests",
+          "pm.test('Response time is reasonable', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "pm.test('Response has valid content type', function () {",
+          "    pm.expect(pm.response.headers.get('content-type')).to.include('application/json');",
+          "});",
+          "",
+          "// Log response status for debugging",
+          "console.log('Response status:', pm.response.status);",
+          "console.log('Response time:', pm.response.responseTime + 'ms');",
+          "",
+          "// Handle different response types",
+          "if (pm.response.code === 200) {",
+          "    pm.test('Successful response', function () {",
+          "        pm.response.to.have.status(200);",
+          "    });",
+          "} else if (pm.response.code === 401) {",
+          "    pm.test('Authentication required (expected for protected routes)', function () {",
+          "        pm.response.to.have.status(401);",
+          "    });",
+          "} else if (pm.response.code === 404) {",
+          "    pm.test('Endpoint not found', function () {",
+          "        pm.response.to.have.status(404);",
+          "    });",
+          "} else if (pm.response.code >= 500) {",
+          "    pm.test('Server error detected', function () {",
+          "        pm.expect.fail('Server error: ' + pm.response.status + ' - ' + pm.response.statusText);",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}

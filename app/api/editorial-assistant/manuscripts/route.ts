@@ -24,28 +24,59 @@ export async function GET(request: NextRequest) {
     // Get manuscripts that need editorial assistant attention
     const relevantStatuses = ["submitted", "editorial_assistant_review", "associate_editor_assignment"]
     
-    const manuscripts = await db.query.submissions.findMany({
-      where: inArray(submissions.status, relevantStatuses),
-      with: {
-        article: {
-          with: {
-            author: true
+    const manuscriptsData = await db
+      .select()
+      .from(submissions)
+      .where(inArray(submissions.status, relevantStatuses))
+      .orderBy(desc(submissions.createdAt))
+
+    // Get associated articles and authors
+    const transformedManuscripts = []
+    for (const submission of manuscriptsData) {
+      let article = null
+      let author = null
+      
+      try {
+        if (submission.articleId) {
+          const articleResult = await db.select().from(articles).where(eq(articles.id, submission.articleId)).limit(1)
+          article = articleResult[0] || null
+          
+          if (article && article.authorId) {
+            try {
+              const authorResult = await db.select().from(users).where(eq(users.id, article.authorId)).limit(1)
+              author = authorResult[0] || null
+            } catch (authorError) {
+              // Log the missing author but continue processing
+              logError(authorError as Error, { 
+                endpoint: "/api/editorial-assistant/manuscripts", 
+                action: "fetchAuthor",
+                articleId: article.id,
+                authorId: article.authorId
+              })
+              author = null
+            }
           }
         }
-      },
-      orderBy: [desc(submissions.createdAt)]
-    })
-
-    // Transform data for frontend
-    const transformedManuscripts = manuscripts.map(manuscript => ({
-      id: manuscript.id,
-      title: manuscript.article?.title || "Untitled",
-      authors: manuscript.article?.author ? [manuscript.article.author.name] : ["Unknown Author"],
-      category: manuscript.article?.category || "Uncategorized",
-      status: manuscript.status,
-      submittedAt: manuscript.createdAt?.toISOString() || new Date().toISOString(),
-      priority: determinePriority(manuscript.createdAt, manuscript.status)
-    }))
+      } catch (articleError) {
+        // Log the error but continue processing other submissions
+        logError(articleError as Error, { 
+          endpoint: "/api/editorial-assistant/manuscripts", 
+          action: "fetchArticle",
+          submissionId: submission.id,
+          articleId: submission.articleId
+        })
+      }
+      
+      transformedManuscripts.push({
+        id: submission.id,
+        title: article?.title || "Untitled",
+        authors: author ? [author.name] : ["Unknown Author"],
+        category: article?.category || "Uncategorized", 
+        status: submission.status,
+        submittedAt: submission.createdAt?.toISOString() || new Date().toISOString(),
+        priority: determinePriority(submission.createdAt, submission.status)
+      })
+    }
 
     return NextResponse.json({
       success: true,

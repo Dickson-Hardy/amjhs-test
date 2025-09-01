@@ -43,7 +43,7 @@ export async function GET(request: Request) {
         newsItems = newsItems.filter(item => item.type === type)
       }
     } catch (dbError) {
-      logger.error('News table not available, using fallback data')
+      logError(dbError as Error, { endpoint: '/api/news', message: 'News table not available, using fallback data' })
     }
 
     // If no news items or database not available, provide fallback announcements

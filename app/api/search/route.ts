@@ -60,40 +60,43 @@ export async function GET(request: NextRequest) {
 }
 
 async function handleSearch(request: NextRequest): Promise<NextResponse> {
-  const searchParams = request.nextUrl.searchParams
+  try {
+    const searchParams = request.nextUrl.searchParams
 
-  // Parse search filters from query parameters
-  const filters: SearchFilters = {
-    query: searchParams.get("q") || searchParams.get("query") || undefined,
-    category: searchParams.get("category") || undefined,
-    authors: searchParams.get("authors")?.split(",").filter(Boolean) || undefined,
-    keywords: searchParams.get("keywords")?.split(",").filter(Boolean) || undefined,
-    volume: searchParams.get("volume") || undefined,
-    issue: searchParams.get("issue") || undefined,
-    status: searchParams.get("status") || "published", // Default to published articles
-    hasFullText: searchParams.get("hasFullText") === "true",
-    hasPDF: searchParams.get("hasPDF") === "true",
-    citationCountMin: searchParams.get("citationCountMin") ? parseInt(searchParams.get("citationCountMin")!) : undefined,
-    viewCountMin: searchParams.get("viewCountMin") ? parseInt(searchParams.get("viewCountMin")!) : undefined,
-    downloadCountMin: searchParams.get("downloadCountMin") ? parseInt(searchParams.get("downloadCountMin")!) : undefined,
-    sortBy: (searchParams.get("sortBy") as unknown) || "relevance",
-    sortOrder: (searchParams.get("sortOrder") as unknown) || "desc",
-    page: parseInt(searchParams.get("page") || "1"),
-    limit: Math.min(parseInt(searchParams.get("limit") || "20"), 100) // Max 100 results per page
-  }
-
-  // Parse date range
-  const startDate = searchParams.get("startDate")
-  const endDate = searchParams.get("endDate")
-  if (startDate && endDate) {
-    filters.dateRange = {
-      start: new Date(startDate),
-      end: new Date(endDate)
+    // Parse search filters from query parameters
+    const filters: SearchFilters = {
+      query: searchParams.get("q") || searchParams.get("query") || undefined,
+      category: searchParams.get("category") || undefined,
+      authors: searchParams.get("authors")?.split(",").filter(Boolean) || undefined,
+      keywords: searchParams.get("keywords")?.split(",").filter(Boolean) || undefined,
+      volume: searchParams.get("volume") || undefined,
+      issue: searchParams.get("issue") || undefined,
+      status: searchParams.get("status") || "published", // Default to published articles
+      hasFullText: searchParams.get("hasFullText") === "true",
+      hasPDF: searchParams.get("hasPDF") === "true",
+      citationCountMin: searchParams.get("citationCountMin") ? parseInt(searchParams.get("citationCountMin")!) : undefined,
+      viewCountMin: searchParams.get("viewCountMin") ? parseInt(searchParams.get("viewCountMin")!) : undefined,
+      downloadCountMin: searchParams.get("downloadCountMin") ? parseInt(searchParams.get("downloadCountMin")!) : undefined,
+      sortBy: (searchParams.get("sortBy") as any) || "relevance",
+      sortOrder: (searchParams.get("sortOrder") as any) || "desc",
+      page: parseInt(searchParams.get("page") || "1"),
+      limit: Math.min(parseInt(searchParams.get("limit") || "20"), 100) // Max 100 results per page
     }
-  }
 
-  // Perform the search
-  const results = await advancedSearchService.search(filters)
+    // Parse date range
+    const startDate = searchParams.get("startDate")
+    const endDate = searchParams.get("endDate")
+    if (startDate && endDate) {
+      filters.dateRange = {
+        start: new Date(startDate),
+        end: new Date(endDate)
+      }
+    }
+
+    logger.info("Search request received", { filters })
+
+    // Perform the search
+    const results = await advancedSearchService.search(filters)
 
   // Save search analytics (don't await to avoid blocking)
   const userId = await getCurrentUserId(request)
@@ -116,12 +119,23 @@ async function handleSearch(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({
-    success: true,
-    data: results,
-    seo: seoMetadata,
-    filters: filters
-  })
+    return NextResponse.json({
+      success: true,
+      data: results,
+      seo: seoMetadata,
+      filters: filters
+    })
+  } catch (error: any) {
+    logger.error("Search handler error", { error: error.message, stack: error.stack })
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: "Search failed",
+        details: error.message 
+      },
+      { status: 500 }
+    )
+  }
 }
 
 async function handleSuggestions(request: NextRequest): Promise<NextResponse> {
