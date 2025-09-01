@@ -63,7 +63,7 @@ const authorSidebarItems = [
   },
   { 
     id: 'revisions',
-    href: '/author/submissions?filter=revisions', 
+    href: '/author/submissions?filter=revision_requested', 
     icon: Upload, 
     label: 'Revisions Required', 
     description: 'Respond to reviews',

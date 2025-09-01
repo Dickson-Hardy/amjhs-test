@@ -47,7 +47,10 @@ export function SubmissionActionButtons({
             className="border-green-300 text-green-700 hover:bg-green-50"
           />
         )
-      case "technical_check":
+      case "editorial_assistant_review":
+      case "associate_editor_assignment":
+      case "associate_editor_review":
+      case "reviewer_assignment":
       case "under_review":
         return (
           <ActionButton

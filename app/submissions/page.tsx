@@ -262,13 +262,13 @@ export default function SubmissionsPage() {
     
     // URL filter
     if (activeFilter !== "all") {
-      if (activeFilter === "revisions" && submission.status !== "revision_requested") {
+      if (activeFilter === "revision_requested" && submission.status !== "revision_requested") {
         return false
       }
       if (activeFilter === "published" && !["published", "accepted"].includes(submission.status)) {
         return false
       }
-      if (activeFilter !== "revisions" && activeFilter !== "published" && submission.status !== activeFilter) {
+      if (activeFilter !== "revision_requested" && activeFilter !== "published" && submission.status !== activeFilter) {
         return false
       }
     }

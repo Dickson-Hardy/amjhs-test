@@ -157,7 +157,7 @@ async function handlePopularSearches(request: NextRequest): Promise<NextResponse
 
 async function handleSearchAnalytics(request: NextRequest): Promise<NextResponse> {
   // Require authentication for analytics
-  const session = await auth(request)
+  const session = await getServerSession(authOptions)
   if (!session || !["admin", "editor"].includes(session.user.role)) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
@@ -202,7 +202,7 @@ async function handleSearchAnalytics(request: NextRequest): Promise<NextResponse
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth(request)
+    const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json(
         { success: false, error: "Authentication required" },
@@ -290,7 +290,7 @@ async function handleTrackClick(
 
 async function getCurrentUserId(request: NextRequest): Promise<string | undefined> {
   try {
-    const session = await auth(request)
+    const session = await getServerSession(authOptions)
     return session?.user.id
   } catch {
     return undefined

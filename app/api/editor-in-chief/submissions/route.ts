@@ -28,7 +28,7 @@ export async function GET(request: Request) {
         isNull(articles.editorId),
         // Stuck in technical check for too long (>14 days)
         and(
-          eq(articles.status, 'technical_check'),
+          eq(articles.status, 'editorial_assistant_review'),
           sql`EXTRACT(EPOCH FROM (NOW() - updated_at)) / 86400 > 14`
         ),
         // Under review for too long (>45 days)
@@ -98,7 +98,7 @@ export async function GET(request: Request) {
       // High priority conditions
       if (
         !submission.editorId || // No editor assigned
-        (submission.status === 'technical_check' && daysSinceUpdate > 14) ||
+        (submission.status === 'editorial_assistant_review' && daysSinceUpdate > 14) ||
         (submission.status === 'under_review' && daysSinceUpdate > 45) ||
         submission.status === 'appeal_pending' ||
         submission.status === 'conflict_resolution'
@@ -108,7 +108,7 @@ export async function GET(request: Request) {
       }
       // Medium priority
       else if (
-        (submission.status === 'technical_check' && daysSinceUpdate > 7) ||
+        (submission.status === 'editorial_assistant_review' && daysSinceUpdate > 7) ||
         (submission.status === 'under_review' && daysSinceUpdate > 30) ||
         daysSinceSubmission > 60
       ) {

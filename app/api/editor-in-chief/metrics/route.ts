@@ -22,7 +22,7 @@ export async function GET() {
         accepted: sql<number>`COUNT(CASE WHEN status = 'accepted' THEN 1 END)`,
         rejected: sql<number>`COUNT(CASE WHEN status = 'rejected' THEN 1 END)`,
         published: sql<number>`COUNT(CASE WHEN status = 'published' THEN 1 END)`,
-        technicalCheck: sql<number>`COUNT(CASE WHEN status = 'technical_check' THEN 1 END)`,
+        editorialReview: sql<number>`COUNT(CASE WHEN status = 'editorial_assistant_review' THEN 1 END)`,
         underReview: sql<number>`COUNT(CASE WHEN status = 'under_review' THEN 1 END)`,
         revisionRequested: sql<number>`COUNT(CASE WHEN status = 'revision_requested' THEN 1 END)`,
         avgReviewTime: sql<number>`
@@ -85,7 +85,7 @@ export async function GET() {
       })
       .from(articles)
       .where(
-        sql`status IN ('technical_check', 'under_review') AND (
+        sql`status IN ('editorial_assistant_review', 'under_review') AND (
           editor_id IS NULL OR 
           EXTRACT(EPOCH FROM (NOW() - updated_at)) / 86400 > 30
         )`

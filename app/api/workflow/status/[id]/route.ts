@@ -11,7 +11,8 @@ import { eq } from "drizzle-orm"
 // Status update schema
 const statusUpdateSchema = z.object({
   newStatus: z.enum([
-    "draft", "submitted", "technical_check", "under_review", 
+    "draft", "submitted", "editorial_assistant_review", "associate_editor_assignment", 
+    "associate_editor_review", "reviewer_assignment", "under_review", 
     "revision_requested", "revision_submitted", "accepted", 
     "rejected", "published", "withdrawn"
   ]),
@@ -173,16 +174,17 @@ async function checkUpdatePermission(user: { id: string; role: string }, submiss
       return ["withdrawn", "revision_submitted"].includes(newStatus)
     }
 
-    // Editors can update most statuses except final publication
-    if (user.role === "editor" || 
-        user.role === "editor-in-chief" || 
-        user.role === "section-editor") {
-      const allowedStatuses = [
-        "technical_check", "under_review", "revision_requested", 
-        "accepted", "rejected"
-      ]
-      return allowedStatuses.includes(newStatus)
-    }
+         // Editors can update most statuses except final publication
+     if (user.role === "editor" || 
+         user.role === "editor-in-chief" || 
+         user.role === "section-editor") {
+       const allowedStatuses = [
+         "editorial_assistant_review", "associate_editor_assignment", 
+         "associate_editor_review", "reviewer_assignment", "under_review", 
+         "revision_requested", "accepted", "rejected"
+       ]
+       return allowedStatuses.includes(newStatus)
+     }
 
     // Reviewers cannot update submission status directly
     return false
@@ -196,8 +198,11 @@ async function checkUpdatePermission(user: { id: string; role: string }, submiss
 function getNextSteps(status: string): string[] {
   const nextStepsMap: Record<string, string[]> = {
     draft: ["Submit for review"],
-    submitted: ["Technical check", "Editor assignment"],
-    technical_check: ["Editor assignment", "Reviewer selection"],
+    submitted: ["Editorial assistant review", "Initial screening"],
+    editorial_assistant_review: ["Associate editor assignment", "Initial screening completion"],
+    associate_editor_assignment: ["Associate editor review", "Editor assignment"],
+    associate_editor_review: ["Reviewer assignment", "Editorial decision"],
+    reviewer_assignment: ["Reviewer selection", "Review assignment"],
     under_review: ["Review completion", "Editorial decision"],
     revision_requested: ["Author revision", "Resubmission"],
     revision_submitted: ["Review of revision", "Final decision"],
@@ -213,14 +218,19 @@ function getNextSteps(status: string): string[] {
 // Helper function to get estimated completion time
 function getEstimatedCompletion(status: string): string {
   const estimations: Record<string, string> = {
+    "draft": "Author dependent",
     "submitted": "3-5 business days",
-    "technical_check": "1-2 business days", 
+    "editorial_assistant_review": "1-2 business days",
+    "associate_editor_assignment": "2-3 business days",
+    "associate_editor_review": "3-5 business days",
+    "reviewer_assignment": "1-2 weeks",
     "under_review": "4-6 weeks",
     "revision_requested": "Author dependent",
     "revision_submitted": "2-3 weeks",
     "accepted": "2-4 weeks",
     "rejected": "Completed",
-    "published": "Completed"
+    "published": "Completed",
+    "withdrawn": "Completed"
   }
   return estimations[status] || "Unknown"
 } 

@@ -281,13 +281,19 @@ export default function AdminSubmissionManagement({ submissionId, onClose }: Adm
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "draft": return "bg-gray-100 text-gray-800"
       case "submitted": return "bg-blue-100 text-blue-800"
-      case "technical_check": return "bg-purple-100 text-purple-800"
+      case "editorial_assistant_review": return "bg-purple-100 text-purple-800"
+      case "associate_editor_assignment": return "bg-indigo-100 text-indigo-800"
+      case "associate_editor_review": return "bg-violet-100 text-violet-800"
+      case "reviewer_assignment": return "bg-cyan-100 text-cyan-800"
       case "under_review": return "bg-yellow-100 text-yellow-800"
       case "revision_requested": return "bg-orange-100 text-orange-800"
+      case "revision_submitted": return "bg-amber-100 text-amber-800"
       case "accepted": return "bg-green-100 text-green-800"
       case "published": return "bg-emerald-100 text-emerald-800"
       case "rejected": return "bg-red-100 text-red-800"
+      case "withdrawn": return "bg-slate-100 text-slate-800"
       default: return "bg-gray-100 text-gray-800"
     }
   }
@@ -526,15 +532,21 @@ export default function AdminSubmissionManagement({ submissionId, onClose }: Adm
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="submitted">Submitted</SelectItem>
-                        <SelectItem value="technical_check">Technical Check</SelectItem>
-                        <SelectItem value="under_review">Under Review</SelectItem>
-                        <SelectItem value="revision_requested">Revision Requested</SelectItem>
-                        <SelectItem value="accepted">Accepted</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
-                        <SelectItem value="published">Published</SelectItem>
-                      </SelectContent>
+                                             <SelectContent>
+                         <SelectItem value="draft">Draft</SelectItem>
+                         <SelectItem value="submitted">Submitted</SelectItem>
+                         <SelectItem value="editorial_assistant_review">Editorial Assistant Review</SelectItem>
+                         <SelectItem value="associate_editor_assignment">Associate Editor Assignment</SelectItem>
+                         <SelectItem value="associate_editor_review">Associate Editor Review</SelectItem>
+                         <SelectItem value="reviewer_assignment">Reviewer Assignment</SelectItem>
+                         <SelectItem value="under_review">Under Review</SelectItem>
+                         <SelectItem value="revision_requested">Revision Requested</SelectItem>
+                         <SelectItem value="revision_submitted">Revision Submitted</SelectItem>
+                         <SelectItem value="accepted">Accepted</SelectItem>
+                         <SelectItem value="rejected">Rejected</SelectItem>
+                         <SelectItem value="published">Published</SelectItem>
+                         <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                       </SelectContent>
                     </Select>
                     <Textarea
                       placeholder="Add notes about this status change..."

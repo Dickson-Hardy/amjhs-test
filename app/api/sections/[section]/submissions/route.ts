@@ -96,7 +96,7 @@ export async function GET(request: Request, context: { params: Promise<{ section
       daysSinceSubmission: submission.submittedDate 
         ? Math.floor((Date.now() - new Date(submission.submittedDate).getTime()) / (1000 * 60 * 60 * 24))
         : 0,
-      needsAction: submission.status === 'technical_check' || submission.status === 'revision_requested',
+              needsAction: submission.status === 'editorial_assistant_review' || submission.status === 'revision_requested',
     }))
 
     return NextResponse.json({

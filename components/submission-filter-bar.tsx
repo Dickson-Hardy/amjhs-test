@@ -19,9 +19,12 @@ export function SubmissionFilterBar({
 
   const filterOptions = [
     { value: 'all', label: 'All Submissions' },
-    { value: 'technical_check', label: 'Technical Check' },
+    { value: 'submitted', label: 'Submitted' },
+    { value: 'editorial_assistant_review', label: 'Editorial Review' },
+    { value: 'associate_editor_review', label: 'Associate Editor Review' },
     { value: 'under_review', label: 'Under Review' },
-    { value: 'revisions', label: 'Revision Needed' },
+    { value: 'revision_requested', label: 'Revision Requested' },
+    { value: 'accepted', label: 'Accepted' },
     { value: 'published', label: 'Published' },
   ]
 

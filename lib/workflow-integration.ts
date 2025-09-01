@@ -282,11 +282,11 @@ export class WorkflowIntegrationService {
 
       // Send appropriate notification based on status
       switch (newStatus) {
-        case "technical_check":
+        case "editorial_assistant_review":
           await sendWorkflowNotification(
             authorData.email,
-            "Technical Check Started",
-            `Your submission is now under technical review.`,
+            "Editorial Review Started",
+            `Your submission is now under editorial review.`,
             { submissionId, status: newStatus }
           )
           break

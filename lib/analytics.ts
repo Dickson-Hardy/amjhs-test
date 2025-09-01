@@ -114,7 +114,7 @@ async function getUserAnalytics(userId: string) {
     const articlesResult = await db.execute(sql`
       SELECT 
         COUNT(*) as total,
-        COUNT(CASE WHEN status IN ('technical_check', 'under_review', 'revision_requested') THEN 1 END) as under_review,
+        COUNT(CASE WHEN status IN ('editorial_assistant_review', 'associate_editor_review', 'under_review', 'revision_requested') THEN 1 END) as under_review,
         COUNT(CASE WHEN status = 'published' THEN 1 END) as published
       FROM articles 
       WHERE author_id = ${userId}

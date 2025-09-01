@@ -23,7 +23,7 @@ export async function GET(request: Request, context: { params: Promise<{ section
     const statsResult = await db
       .select({
         totalSubmissions: sql<number>`COUNT(*)`,
-        technicalCheck: sql<number>`COUNT(CASE WHEN status = 'technical_check' THEN 1 END)`,
+        editorialReview: sql<number>`COUNT(CASE WHEN status = 'editorial_assistant_review' THEN 1 END)`,
         underReview: sql<number>`COUNT(CASE WHEN status = 'under_review' THEN 1 END)`,
         revisionRequested: sql<number>`COUNT(CASE WHEN status = 'revision_requested' THEN 1 END)`,
         accepted: sql<number>`COUNT(CASE WHEN status = 'accepted' THEN 1 END)`,
@@ -57,7 +57,7 @@ export async function GET(request: Request, context: { params: Promise<{ section
       .where(
         and(
           eq(articles.category, section),
-          sql`status IN ('technical_check', 'revision_requested')`
+          sql`status IN ('editorial_assistant_review', 'revision_requested')`
         )
       )
 

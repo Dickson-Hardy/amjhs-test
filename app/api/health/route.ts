@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { sql } from "@vercel/postgres"
 import { initRedis } from "@/lib/redis"
 import { CacheManager } from "@/lib/cache"
+import { logger } from "@/lib/logger"
 
 export async function GET() {
   const isMaintenanceMode = process.env.MAINTENANCE_MODE === 'true'

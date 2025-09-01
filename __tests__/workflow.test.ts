@@ -24,7 +24,7 @@ describe('Workflow System Tests', () => {
     it('should define valid workflow transitions', () => {
       expect(WORKFLOW_TRANSITIONS.draft).toContain('submitted')
       expect(WORKFLOW_TRANSITIONS.submitted).toContain('under_review')
-      expect(WORKFLOW_TRANSITIONS.technical_check).toContain('under_review')
+      expect(WORKFLOW_TRANSITIONS.editorial_assistant_review).toContain('associate_editor_assignment')
       expect(WORKFLOW_TRANSITIONS.under_review).toContain('accepted')
       expect(WORKFLOW_TRANSITIONS.accepted).toContain('published')
     })

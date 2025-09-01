@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { 
   FileText, 
   Upload, 
@@ -20,7 +21,10 @@ import {
   X,
   AlertCircle,
   CheckCircle,
-  ArrowRight
+  ArrowRight,
+  User,
+  AlertTriangle,
+  Info
 } from "lucide-react"
 
 interface Author {
@@ -29,6 +33,13 @@ interface Author {
   email: string
   affiliation: string
   isCorresponding: boolean
+}
+
+interface RecommendedReviewer {
+  name: string
+  email: string
+  affiliation: string
+  expertise: string
 }
 
 interface UploadedFile {
@@ -50,6 +61,11 @@ export default function SubmitPage() {
     category: "",
     keywords: "",
     authors: [] as Author[],
+    recommendedReviewers: [
+      { name: "", email: "", affiliation: "", expertise: "" },
+      { name: "", email: "", affiliation: "", expertise: "" },
+      { name: "", email: "", affiliation: "", expertise: "" }
+    ] as RecommendedReviewer[],
     manuscriptFile: null as File | null,
     coverLetter: null as File | null,
     supplementaryFiles: [] as File[],
@@ -102,6 +118,35 @@ export default function SubmitPage() {
     }))
   }
 
+  const addRecommendedReviewer = () => {
+    const newReviewer: RecommendedReviewer = {
+      name: "",
+      email: "",
+      affiliation: "",
+      expertise: ""
+    }
+    setSubmissionData(prev => ({
+      ...prev,
+      recommendedReviewers: [...prev.recommendedReviewers, newReviewer]
+    }))
+  }
+
+  const removeRecommendedReviewer = (index: number) => {
+    setSubmissionData(prev => ({
+      ...prev,
+      recommendedReviewers: prev.recommendedReviewers.filter((_, i) => i !== index)
+    }))
+  }
+
+  const updateRecommendedReviewer = (index: number, field: keyof RecommendedReviewer, value: string) => {
+    setSubmissionData(prev => ({
+      ...prev,
+      recommendedReviewers: prev.recommendedReviewers.map((reviewer, i) => 
+        i === index ? { ...reviewer, [field]: value } : reviewer
+      )
+    }))
+  }
+
   const uploadFile = async (file: File, category: string): Promise<UploadedFile | null> => {
     try {
       setUploading(true)
@@ -129,12 +174,14 @@ export default function SubmitPage() {
       })
 
       if (result.success && result.file) {
+        // Handle both chunked and regular upload response structures
+        const fileData = result.file
         return {
-          id: result.file.id,
-          name: result.file.originalName,
-          url: result.file.url,
+          id: fileData.id,
+          name: fileData.originalName,
+          url: fileData.url,
           type: category,
-          fileId: result.file.id
+          fileId: fileData.id
         }
       } else {
         throw new Error(result.error || 'Upload failed')
@@ -225,12 +272,25 @@ export default function SubmitPage() {
     }
 
     if (step === 3) {
-      // Files are optional according to the API, but we can still encourage them
-      // if (!submissionData.manuscriptFile) newErrors.manuscriptFile = "Manuscript file is required"
-      // if (!submissionData.coverLetter) newErrors.coverLetter = "Cover letter is required"
+      // Validate recommended reviewers - minimum 3 required
+      if (submissionData.recommendedReviewers.length < 3) {
+        newErrors.recommendedReviewers = "At least 3 recommended reviewers are required"
+      } else {
+        submissionData.recommendedReviewers.forEach((reviewer, index) => {
+          if (!reviewer.name.trim()) newErrors[`reviewer${index}Name`] = "Reviewer name is required"
+          if (!reviewer.email.trim()) newErrors[`reviewer${index}Email`] = "Reviewer email is required"
+          if (!reviewer.affiliation.trim()) newErrors[`reviewer${index}Affiliation`] = "Reviewer affiliation is required"
+        })
+      }
     }
 
-    if (step === 4) {
+         if (step === 4) {
+       // Manuscript file is required
+       if (!submissionData.manuscriptFile) newErrors.manuscriptFile = "Manuscript file is required"
+       // Cover letter and supplementary files are optional
+     }
+
+    if (step === 5) {
       if (!submissionData.ethicalApproval) newErrors.ethicalApproval = "Ethical approval confirmation is required"
       if (!submissionData.conflictOfInterest) newErrors.conflictOfInterest = "Conflict of interest declaration is required"
       if (!submissionData.dataAvailability) newErrors.dataAvailability = "Data availability statement is required"
@@ -242,7 +302,7 @@ export default function SubmitPage() {
 
   const nextStep = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, 4))
+      setCurrentStep(prev => Math.min(prev + 1, 5))
     }
   }
 
@@ -270,6 +330,12 @@ export default function SubmitPage() {
             affiliation: author.affiliation,
             isCorrespondingAuthor: author.isCorresponding
           })),
+          recommendedReviewers: submissionData.recommendedReviewers.map(reviewer => ({
+            name: reviewer.name.trim(),
+            email: reviewer.email.trim(),
+            affiliation: reviewer.affiliation.trim(),
+            expertise: reviewer.expertise?.trim() || "General expertise"
+          })),
           files: submissionData.uploadedFiles.map(file => ({
             url: file.url,
             type: file.type,
@@ -295,7 +361,16 @@ export default function SubmitPage() {
       const result = await response.json()
 
       if (response.ok && result.success) {
-        alert(`Submission successful! Your manuscript has been submitted for review. Submission ID: ${result.data.submissionId}`)
+        alert(`Submission successful! Your manuscript has been submitted for review. Submission ID: ${result.data.submissionId}
+
+Next Steps:
+1. Editorial Assistant Review (1-2 business days)
+2. Associate Editor Assignment (2-3 business days)  
+3. Reviewer Selection and Invitation (1-2 weeks)
+4. Peer Review Process (4-6 weeks)
+5. Editorial Decision and Feedback
+
+You will receive email notifications at each stage. Track your submission status in the Submissions dashboard.`)
         router.push("/author/submissions")
       } else {
         throw new Error(result.message || 'Submission failed')
@@ -474,94 +549,295 @@ export default function SubmitPage() {
 
   const renderStep3 = () => (
     <div className="space-y-6">
-      {uploading && (
-        <Alert>
-          <AlertDescription>
-            Uploading files... Please wait.
-          </AlertDescription>
-        </Alert>
-      )}
+      <Alert className="border-blue-200 bg-blue-50">
+        <Info className="h-5 w-5 text-blue-600" />
+        <AlertDescription className="text-blue-800">
+          <div className="font-semibold mb-2">📝 Recommended Reviewers Guidelines</div>
+          <p className="text-sm mb-2">
+            Please suggest a minimum of <strong>3 qualified reviewers</strong> who can evaluate your manuscript. 
+            These should be experts in your field who are not co-authors and have no conflicts of interest.
+          </p>
+          <ul className="text-sm space-y-1">
+            <li>• Choose reviewers who are familiar with your research area</li>
+            <li>• Ensure suggested reviewers have recent publications in relevant journals</li>
+            <li>• Avoid recommending close collaborators or colleagues from your institution</li>
+            <li>• Include reviewers from different institutions and countries when possible</li>
+            <li>• Provide accurate contact information and affiliations</li>
+          </ul>
+        </AlertDescription>
+      </Alert>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Recommended Reviewers</h3>
+          <p className="text-sm text-gray-600">Minimum 3 reviewers required for submission</p>
+        </div>
+        <Button onClick={addRecommendedReviewer} type="button">
+          <Plus className="h-4 w-4 mr-2" />
+          Add Reviewer
+        </Button>
+      </div>
+
+      {errors.recommendedReviewers && <p className="text-red-500 text-sm">{errors.recommendedReviewers}</p>}
       
-      <div>
-        <Label htmlFor="manuscript">Manuscript File (Optional)</Label>
-        <div className="mt-2">
-          <Input
-            id="manuscript"
-            type="file"
-            accept=".doc,.docx,.pdf"
-            onChange={(e) => handleFileUpload("manuscriptFile", e.target.files?.[0] || null)}
-            className={errors.manuscriptFile ? "border-red-500" : ""}
-            disabled={uploading}
-          />
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex-1 bg-gray-200 rounded-full h-2">
+          <div 
+            className={`h-2 rounded-full transition-all duration-300 ${
+              submissionData.recommendedReviewers.filter(r => r.name && r.email && r.affiliation).length >= 3 
+                ? 'bg-green-500' 
+                : 'bg-blue-500'
+            }`}
+            style={{ 
+              width: `${Math.min((submissionData.recommendedReviewers.filter(r => r.name && r.email && r.affiliation).length / 3) * 100, 100)}%` 
+            }}
+          ></div>
         </div>
-        {errors.manuscriptFile && <p className="text-red-500 text-sm mt-1">{errors.manuscriptFile}</p>}
-        <p className="text-sm text-gray-500 mt-1">Accepted formats: .doc, .docx, .pdf</p>
-        {submissionData.manuscriptFile && (
-          <p className="text-sm text-green-600 mt-1">✓ {submissionData.manuscriptFile.name} uploaded</p>
-        )}
+        <span className="text-sm font-medium text-gray-600">
+          {submissionData.recommendedReviewers.filter(r => r.name && r.email && r.affiliation).length}/3 Complete
+        </span>
       </div>
 
-      <div>
-        <Label htmlFor="coverLetter">Cover Letter (Optional)</Label>
-        <div className="mt-2">
-          <Input
-            id="coverLetter"
-            type="file"
-            accept=".doc,.docx,.pdf"
-            onChange={(e) => handleFileUpload("coverLetter", e.target.files?.[0] || null)}
-            className={errors.coverLetter ? "border-red-500" : ""}
-            disabled={uploading}
-          />
-        </div>
-        {errors.coverLetter && <p className="text-red-500 text-sm mt-1">{errors.coverLetter}</p>}
-        <p className="text-sm text-gray-500 mt-1">Include a cover letter explaining your submission</p>
-        {submissionData.coverLetter && (
-          <p className="text-sm text-green-600 mt-1">✓ {submissionData.coverLetter.name} uploaded</p>
-        )}
-      </div>
+      {submissionData.recommendedReviewers.map((reviewer, index) => (
+        <Card key={index} className="p-4 border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-medium">Reviewer {index + 1}</h4>
+            {submissionData.recommendedReviewers.length > 3 && (
+              <Button
+                onClick={() => removeRecommendedReviewer(index)}
+                variant="outline"
+                size="sm"
+                type="button"
+                className="text-red-600 border-red-200 hover:bg-red-50"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
 
-      <div>
-        <Label htmlFor="supplementary">Supplementary Files</Label>
-        <div className="mt-2">
-          <Input
-            id="supplementary"
-            type="file"
-            multiple
-            accept=".doc,.docx,.pdf,.xls,.xlsx,.zip"
-            onChange={(e) => handleMultipleFileUpload(e.target.files)}
-            disabled={uploading}
-          />
-        </div>
-        <p className="text-sm text-gray-500 mt-1">Optional: Additional files, figures, data sets, etc.</p>
-        
-        {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').length > 0 && (
-          <div className="mt-4">
-            <h4 className="font-medium mb-2">Uploaded Files:</h4>
-            <div className="space-y-2">
-              {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').map((file, index) => (
-                <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <span className="text-sm">✓ {file.name}</span>
-                  <Button
-                    onClick={() => setSubmissionData(prev => ({
-                      ...prev,
-                      uploadedFiles: prev.uploadedFiles.filter((_, i) => i !== index)
-                    }))}
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={`reviewerName${index}`}>Full Name *</Label>
+              <Input
+                id={`reviewerName${index}`}
+                value={reviewer.name}
+                onChange={(e) => updateRecommendedReviewer(index, "name", e.target.value)}
+                placeholder="Dr. John Smith"
+                className={errors[`reviewer${index}Name`] ? "border-red-500" : ""}
+              />
+              {errors[`reviewer${index}Name`] && (
+                <p className="text-red-500 text-sm mt-1">{errors[`reviewer${index}Name`]}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor={`reviewerEmail${index}`}>Email Address *</Label>
+              <Input
+                id={`reviewerEmail${index}`}
+                type="email"
+                value={reviewer.email}
+                onChange={(e) => updateRecommendedReviewer(index, "email", e.target.value)}
+                placeholder="john.smith@university.edu"
+                className={errors[`reviewer${index}Email`] ? "border-red-500" : ""}
+              />
+              {errors[`reviewer${index}Email`] && (
+                <p className="text-red-500 text-sm mt-1">{errors[`reviewer${index}Email`]}</p>
+              )}
+            </div>
+
+            <div className="md:col-span-2">
+              <Label htmlFor={`reviewerAffiliation${index}`}>Affiliation *</Label>
+              <Input
+                id={`reviewerAffiliation${index}`}
+                value={reviewer.affiliation}
+                onChange={(e) => updateRecommendedReviewer(index, "affiliation", e.target.value)}
+                placeholder="Department of Medicine/Engineering/Science, University of Excellence, Country"
+                className={errors[`reviewer${index}Affiliation`] ? "border-red-500" : ""}
+              />
+              {errors[`reviewer${index}Affiliation`] && (
+                <p className="text-red-500 text-sm mt-1">{errors[`reviewer${index}Affiliation`]}</p>
+              )}
+            </div>
+
+            <div className="md:col-span-2">
+              <Label htmlFor={`reviewerExpertise${index}`}>Area of Expertise (Optional)</Label>
+              <Input
+                id={`reviewerExpertise${index}`}
+                value={reviewer.expertise}
+                onChange={(e) => updateRecommendedReviewer(index, "expertise", e.target.value)}
+                placeholder="Medicine, Computer Science, Physics, etc."
+              />
             </div>
           </div>
-        )}
-      </div>
+        </Card>
+      ))}
+
+      {submissionData.recommendedReviewers.length === 0 && (
+        <div className="text-center py-8 text-gray-500">
+          <User className="h-12 w-12 mx-auto mb-4" />
+          <p>Click "Add Reviewer" to add the first recommended reviewer</p>
+        </div>
+      )}
+
+      <Alert className="border-amber-200 bg-amber-50">
+        <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <AlertDescription className="text-amber-800">
+          <strong>Important:</strong> The editorial team reserves the right to use additional reviewers 
+          beyond those you recommend. Your suggestions will be considered but are not guaranteed to be selected.
+        </AlertDescription>
+      </Alert>
     </div>
   )
 
-  const renderStep4 = () => (
+     const renderStep4 = () => (
+     <div className="space-y-6">
+       {uploading && (
+         <Alert>
+           <AlertDescription>
+             Uploading files... Please wait.
+           </AlertDescription>
+         </Alert>
+       )}
+
+                {/* File Upload Status Summary */}
+         <Alert className="border-blue-200 bg-blue-50">
+           <Info className="h-5 w-5 text-blue-600" />
+           <AlertDescription className="text-blue-800">
+             <div className="font-semibold mb-2">📁 File Upload Requirements</div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+               <div>
+                 <div className="flex items-center gap-2 mb-1">
+                   <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                   <strong>Required:</strong>
+                 </div>
+                 <ul className="space-y-1 ml-4">
+                   <li>• Manuscript file (.doc, .docx, .pdf)</li>
+                 </ul>
+               </div>
+               <div>
+                 <div className="flex items-center gap-2 mb-1">
+                   <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                   <strong>Optional:</strong>
+                 </div>
+                 <ul className="space-y-1 ml-4">
+                   <li>• Cover letter</li>
+                   <li>• Supplementary files</li>
+                 </ul>
+               </div>
+             </div>
+           </AlertDescription>
+         </Alert>
+
+         {/* File Upload Progress */}
+         <div className="bg-gray-50 p-4 rounded-lg">
+           <h4 className="font-medium mb-3">Upload Status</h4>
+           <div className="space-y-3">
+             <div className="flex items-center justify-between">
+               <span className="text-sm">Manuscript File:</span>
+               <span className={`text-sm font-medium ${
+                 submissionData.manuscriptFile ? 'text-green-600' : 'text-red-600'
+               }`}>
+                 {submissionData.manuscriptFile ? '✓ Uploaded' : '✗ Required'}
+               </span>
+             </div>
+             <div className="flex items-center justify-between">
+               <span className="text-sm">Cover Letter:</span>
+               <span className={`text-sm font-medium ${
+                 submissionData.coverLetter ? 'text-green-600' : 'text-gray-500'
+               }`}>
+                 {submissionData.coverLetter ? '✓ Uploaded' : 'Optional'}
+               </span>
+             </div>
+             <div className="flex items-center justify-between">
+               <span className="text-sm">Supplementary Files:</span>
+               <span className="text-sm font-medium text-gray-600">
+                 {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').length} uploaded
+               </span>
+             </div>
+           </div>
+         </div>
+      
+             <div>
+         <Label htmlFor="manuscript">Manuscript File *</Label>
+         <div className="mt-2">
+           <Input
+             id="manuscript"
+             type="file"
+             accept=".doc,.docx,.pdf"
+             onChange={(e) => handleFileUpload("manuscriptFile", e.target.files?.[0] || null)}
+             className={errors.manuscriptFile ? "border-red-500" : ""}
+             disabled={uploading}
+             required
+           />
+         </div>
+         {errors.manuscriptFile && <p className="text-red-500 text-sm mt-1">{errors.manuscriptFile}</p>}
+         <p className="text-sm text-gray-500 mt-1">Accepted formats: .doc, .docx, .pdf</p>
+         {submissionData.manuscriptFile && (
+           <p className="text-sm text-green-600 mt-1">✓ {submissionData.manuscriptFile.name} uploaded</p>
+         )}
+       </div>
+
+             <div>
+         <Label htmlFor="coverLetter">Cover Letter (Optional)</Label>
+         <div className="mt-2">
+           <Input
+             id="coverLetter"
+             type="file"
+             accept=".doc,.docx,.pdf"
+             onChange={(e) => handleFileUpload("coverLetter", e.target.files?.[0] || null)}
+             className={errors.coverLetter ? "border-red-500" : ""}
+             disabled={uploading}
+           />
+         </div>
+         {errors.coverLetter && <p className="text-red-500 text-sm mt-1">{errors.coverLetter}</p>}
+         <p className="text-sm text-gray-500 mt-1">Include a cover letter explaining your submission</p>
+         {submissionData.coverLetter && (
+           <p className="text-sm text-green-600 mt-1">✓ {submissionData.coverLetter.name} uploaded</p>
+         )}
+       </div>
+
+       <div>
+         <Label htmlFor="supplementary">Supplementary Files (Optional)</Label>
+         <div className="mt-2">
+           <Input
+             id="supplementary"
+             type="file"
+             multiple
+             accept=".doc,.docx,.pdf,.xls,.xlsx,.zip"
+             onChange={(e) => handleMultipleFileUpload(e.target.files)}
+             disabled={uploading}
+           />
+         </div>
+         <p className="text-sm text-gray-500 mt-1">Additional files, figures, data sets, etc.</p>
+         
+         {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').length > 0 && (
+           <div className="mt-4">
+             <h4 className="font-medium mb-2">Uploaded Supplementary Files:</h4>
+             <div className="space-y-2">
+               {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').map((file, index) => (
+                 <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                   <span className="text-sm">✓ {file.name}</span>
+                   <Button
+                     onClick={() => setSubmissionData(prev => ({
+                       ...prev,
+                       uploadedFiles: prev.uploadedFiles.filter((_, i) => i !== index)
+                     }))}
+                     variant="outline"
+                     size="sm"
+                     type="button"
+                   >
+                     <X className="h-4 w-4" />
+                   </Button>
+                 </div>
+               ))}
+             </div>
+           </div>
+         )}
+       </div>
+    </div>
+  )
+
+  const renderStep5 = () => (
     <div className="space-y-6">
       <div>
         <Label htmlFor="funding">Funding Information</Label>
@@ -632,8 +908,9 @@ export default function SubmitPage() {
   const steps = [
     { number: 1, title: "Manuscript Details", icon: <FileText className="h-5 w-5" /> },
     { number: 2, title: "Authors", icon: <Plus className="h-5 w-5" /> },
-    { number: 3, title: "Files", icon: <Upload className="h-5 w-5" /> },
-    { number: 4, title: "Declarations", icon: <CheckCircle className="h-5 w-5" /> }
+    { number: 3, title: "Recommended Reviewers", icon: <User className="h-5 w-5" /> },
+    { number: 4, title: "Files", icon: <Upload className="h-5 w-5" /> },
+    { number: 5, title: "Declarations", icon: <CheckCircle className="h-5 w-5" /> }
   ]
 
   return (
@@ -648,6 +925,8 @@ export default function SubmitPage() {
               Complete the form below to submit your manuscript for review
             </p>
           </div>
+
+          
 
       {/* Progress Steps */}
       <div className="mb-8">
@@ -692,6 +971,7 @@ export default function SubmitPage() {
           {currentStep === 2 && renderStep2()}
           {currentStep === 3 && renderStep3()}
           {currentStep === 4 && renderStep4()}
+          {currentStep === 5 && renderStep5()}
 
           {/* Navigation Buttons */}
           <div className="flex justify-between mt-8">
@@ -704,7 +984,7 @@ export default function SubmitPage() {
             </Button>
 
             <div className="flex gap-2">
-              {currentStep < 4 ? (
+              {currentStep < 5 ? (
                 <Button onClick={nextStep} disabled={loading || uploading}>
                   Next
                   <ArrowRight className="h-4 w-4 ml-2" />

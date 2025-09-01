@@ -223,7 +223,7 @@ export const articles = pgTable("articles", {
   content: text("content"),
   keywords: jsonb("keywords").$type<string[]>(),
   category: text("category").notNull(),
-  status: text("status").notNull().default("submitted"), // submitted, under_review, revision_requested, accepted, rejected, published
+  status: text("status").notNull().default("submitted"), // draft, submitted, editorial_assistant_review, associate_editor_assignment, associate_editor_review, reviewer_assignment, under_review, revision_requested, revision_submitted, accepted, rejected, published, withdrawn
   doi: text("doi"),
   doiRegistered: boolean("doi_registered").default(false),
   doiRegisteredAt: timestamp("doi_registered_at"),
@@ -249,7 +249,7 @@ export const reviews = pgTable("reviews", {
   id: uuid("id").defaultRandom().primaryKey(),
   articleId: uuid("article_id").references(() => articles.id),
   reviewerId: uuid("reviewer_id").references(() => users.id),
-  status: text("status").notNull().default("pending"), // pending, completed, declined
+  status: text("status").notNull().default("pending"), // pending, accepted, declined, in_progress, completed, overdue
   recommendation: text("recommendation"), // accept, minor_revision, major_revision, reject
   comments: text("comments"),
   confidentialComments: text("confidential_comments"),
@@ -289,7 +289,7 @@ export const submissions = pgTable("submissions", {
   id: uuid("id").defaultRandom().primaryKey(),
   articleId: uuid("article_id").references(() => articles.id),
   authorId: uuid("author_id").references(() => users.id),
-  status: text("status").notNull().default("draft"), // draft, submitted, under_review, accepted, rejected
+  status: text("status").notNull().default("draft"), // draft, submitted, editorial_assistant_review, associate_editor_assignment, associate_editor_review, reviewer_assignment, under_review, revision_requested, revision_submitted, accepted, rejected, withdrawn
   statusHistory: jsonb("status_history").$type<WorkflowHistoryEntry[]>().default([]),
   submittedAt: timestamp("submitted_at"),
   createdAt: timestamp("created_at").defaultNow(),

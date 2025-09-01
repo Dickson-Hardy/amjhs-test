@@ -235,7 +235,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 function getEstimatedCompletion(status: string): string {
   const estimations: Record<string, string> = {
     "submitted": "3-5 business days",
-    "technical_check": "1-2 business days", 
+            "editorial_assistant_review": "1-2 business days", 
     "under_review": "4-6 weeks",
     "revision_requested": "Author dependent",
     "revision_submitted": "2-3 weeks",
@@ -250,7 +250,7 @@ function getEstimatedCompletion(status: string): string {
 function getNextSteps(status: string): string[] {
   const nextStepsMap: Record<string, string[]> = {
     "submitted": ["Technical check", "Editor assignment"],
-    "technical_check": ["Editor assignment", "Reviewer selection"],
+            "editorial_assistant_review": ["Associate editor assignment", "Initial screening"],
     "under_review": ["Review completion", "Editorial decision"],
     "revision_requested": ["Author revision", "Resubmission"],
     "revision_submitted": ["Review of revision", "Final decision"],

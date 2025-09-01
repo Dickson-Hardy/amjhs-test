@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Update article status to under_review if not already
-    if (submission[0].status === "technical_check" || submission[0].status === "submitted") {
+            if (submission[0].status === "editorial_assistant_review" || submission[0].status === "submitted") {
       await db
         .update(articles)
         .set({ 
