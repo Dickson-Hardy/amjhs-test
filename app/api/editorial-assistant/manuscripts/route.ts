@@ -41,9 +41,17 @@ export async function GET(request: NextRequest) {
           const articleResult = await db.select().from(articles).where(eq(articles.id, submission.articleId)).limit(1)
           article = articleResult[0] || null
           
-          if (article && article.authorId) {
+          if (article?.authorId) {
             try {
-              const authorResult = await db.select().from(users).where(eq(users.id, article.authorId)).limit(1)
+              const authorResult = await db
+                .select({
+                  id: users.id,
+                  name: users.name,
+                  email: users.email
+                })
+                .from(users)
+                .where(eq(users.id, article.authorId))
+                .limit(1)
               author = authorResult[0] || null
             } catch (authorError) {
               // Log the missing author but continue processing

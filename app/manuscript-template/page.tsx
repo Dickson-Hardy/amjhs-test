@@ -105,7 +105,7 @@ export default function ManuscriptTemplatePage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-800 mb-4">Manuscript Templates & Resources</h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Download official templates and guidelines to ensure your manuscript meets African Medical and Health Sciences Journal (AMHSJ) standards.
+            Download official templates and guidelines to ensure your manuscript meets Advances in Medicine & Health Sciences Journal (AMHSJ) standards.
           </p>
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-lg font-semibold text-blue-800 mb-2">

@@ -8,7 +8,7 @@ export default function SiteFooter() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <p>
-              The Advances in Medicine & Health Sciences Journal (AMHSJ) is the journal of the Bayelsa Medical University and is published quarterly. It disseminates peer‑reviewed research from the rural Niger Delta region of Nigeria and globally across all medical and health science specialties.
+              The Advances in Medicine & Health Sciences Journal (AMHSJ) is an international peer-reviewed journal published by volumes. It disseminates high-quality research across all medical and health science specialties from researchers worldwide.
             </p>
             <p>
               Content is published open access and immediately free to read and download.

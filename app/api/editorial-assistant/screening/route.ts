@@ -5,7 +5,7 @@ import { EditorialAssistantService } from "@/lib/workflow"
 import { logError } from "@/lib/logger"
 import { z } from "zod"
 import { db } from "@/lib/db"
-import { submissions, articles, users } from "@/lib/db/schema"
+import { submissions, articles, users, recommendedReviewers } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
 // Screening data validation schema
@@ -162,6 +162,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Submission not found" }, { status: 404 })
     }
 
+    // Fetch suggested reviewers from the recommendedReviewers table
+    const suggestedReviewersData = await db
+      .select({
+        id: recommendedReviewers.id,
+        name: recommendedReviewers.name,
+        email: recommendedReviewers.email,
+        affiliation: recommendedReviewers.affiliation,
+        expertise: recommendedReviewers.expertise,
+        status: recommendedReviewers.status,
+        notes: recommendedReviewers.notes
+      })
+      .from(recommendedReviewers)
+      .where(eq(recommendedReviewers.articleId, submission.articleId))
+
     // Format the response with all manuscript details
     const manuscriptData = {
       id: submission.submissionId,
@@ -228,9 +242,16 @@ export async function GET(request: NextRequest) {
         hasFunding: false
       },
       
-      // Cover letter and reviewer suggestions from metadata
+      // Cover letter and reviewer suggestions
       coverLetter: submission.metadata?.coverLetter || '',
-      suggestedReviewers: submission.metadata?.suggestedReviewers || [],
+      suggestedReviewers: suggestedReviewersData.map(reviewer => ({
+        name: reviewer.name,
+        email: reviewer.email,
+        affiliation: reviewer.affiliation,
+        expertise: reviewer.expertise,
+        status: reviewer.status,
+        notes: reviewer.notes
+      })),
       excludedReviewers: submission.metadata?.excludedReviewers || [],
       
       // Additional metadata

@@ -283,7 +283,7 @@ async function sendMentionNotifications(
           created_at
         ) VALUES (
           ${user.id},
-          'mention',
+          'system',
           'You were mentioned in a comment',
           ${`${comment.userName} mentioned you in a comment on manuscript ${manuscriptId}`},
           ${JSON.stringify({ 

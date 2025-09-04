@@ -129,7 +129,7 @@ async function createAdminNotification(application: any) {
       userId: null, // System notification - will be handled by admin role
       title: `New Reviewer Application from ${application.firstName} ${application.lastName}`,
       message: `Application from ${application.institution} - ${application.primarySpecialty} specialist`,
-      type: 'reviewer_application',
+      type: 'system',
       relatedId: application.id,
       isRead: false,
     })

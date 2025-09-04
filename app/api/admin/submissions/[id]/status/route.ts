@@ -58,7 +58,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       try {
         await db.insert(notifications).values({
           userId: submission.authorId,
-          type: 'submission_status',
+          type: 'submission',
           title: `Submission Status Update: ${submission.title}`,
           message: notes ? `${message}\n\nNotes: ${notes}` : message,
           relatedId: submissionId,

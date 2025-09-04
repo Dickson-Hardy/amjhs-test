@@ -134,7 +134,7 @@ async function sendReplyMentionNotifications(
           created_at
         ) VALUES (
           ${user.id},
-          'mention',
+          'system',
           'You were mentioned in a reply',
           ${`${reply.userName} mentioned you in a reply to a comment`},
           ${JSON.stringify({ 

@@ -16,7 +16,7 @@ export const reviewSubmissionSchema = z.object({
 export const messageCreationSchema = z.object({
   conversationId: z.string().uuid().optional(),
   recipientId: z.string().uuid().optional(),
-  recipientType: z.enum(["admin", "editor", "support", "user"]).optional(),
+  recipientType: z.enum(["admin", "editor", "support", "user", "author"]).optional(),
   subject: z.string().min(3, "Subject must be at least 3 characters").max(200, "Subject too long"),
   content: z.string().min(10, "Message must be at least 10 characters").max(5000, "Message too long"),
   messageType: z.enum(["general", "editorial", "review", "system"]).default("general"),

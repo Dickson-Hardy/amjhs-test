@@ -161,7 +161,7 @@ export default function AboutJournalPage() {
                   <div><span className="font-semibold text-blue-800">Title:</span> Advances in Medicine and Health Sciences Research (AMHSJ)</div>
                   <div><span className="font-semibold text-blue-800">ISSN:</span> XXXX-XXXX</div>
                   <div><span className="font-semibold text-blue-800">Language:</span> English</div>
-                  <div><span className="font-semibold text-blue-800">Publication Frequency:</span> Quarterly (4 issues per year)</div>
+                  <div><span className="font-semibold text-blue-800">Publication Frequency:</span> Published by volumes (continuous publishing)</div>
                   <div><span className="font-semibold text-blue-800">Peer Review Process:</span> Double-blind peer review</div>
                 </div>
                 <div className="space-y-2">

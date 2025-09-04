@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { users } from "@/lib/db/schema"
+import { users, editorProfiles } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { logError } from "@/lib/logger"
 
 export async function POST(request: NextRequest) {
+  let session
   try {
-    const session = await getServerSession(authOptions)
+    session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -30,24 +31,52 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Check if there's already an associate editor (optional constraint)
-    const existingAssociateEditor = await db.query.users.findFirst({
-      where: eq(users.role, "associate-editor")
+    // Check if there's already an associate editor (check editorProfiles table)
+    const existingAssociateEditor = await db.query.editorProfiles.findFirst({
+      where: eq(editorProfiles.editorType, "associate")
     })
 
-    if (existingAssociateEditor && existingAssociateEditor.id !== session.user.id) {
+    if (existingAssociateEditor && existingAssociateEditor.userId !== session.user.id) {
       return NextResponse.json({ 
         error: "There is already an associate editor assigned. Please contact an administrator." 
       }, { status: 409 })
     }
 
-    // Update the user's role
+    // Update the user's role to editor
     await db.update(users)
       .set({ 
-        role: targetRole,
+        role: "editor",
         updatedAt: new Date()
       })
       .where(eq(users.id, session.user.id))
+
+    // Create or update editor profile with associate type
+    const existingProfile = await db.query.editorProfiles.findFirst({
+      where: eq(editorProfiles.userId, session.user.id)
+    })
+
+    if (existingProfile) {
+      // Update existing profile
+      await db.update(editorProfiles)
+        .set({
+          editorType: "associate",
+          isActive: true,
+          updatedAt: new Date()
+        })
+        .where(eq(editorProfiles.userId, session.user.id))
+    } else {
+      // Create new profile
+      await db.insert(editorProfiles).values({
+        userId: session.user.id,
+        editorType: "associate",
+        assignedSections: [],
+        currentWorkload: 0,
+        maxWorkload: 10,
+        isAcceptingSubmissions: true,
+        startDate: new Date(),
+        isActive: true
+      })
+    }
 
     // Log the role change
     logError(new Error(`Role change logged`), {
@@ -61,8 +90,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      message: `Role successfully switched to ${targetRole}`,
-      newRole: targetRole
+      message: `Role successfully switched to associate editor`,
+      newRole: "editor",
+      editorType: "associate"
     })
 
   } catch (error) {

@@ -68,7 +68,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     try {
       await db.insert(notifications).values({
         userId: reviewerId,
-        type: 'review_assignment',
+        type: 'review',
         title: 'New Review Assignment',
         message: `You have been assigned to review a new submission. Please log in to your reviewer dashboard to access the manuscript.`,
         relatedId: submissionId,

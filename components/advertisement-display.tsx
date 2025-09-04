@@ -38,7 +38,7 @@ export default function AdvertisementDisplay({
           setAdvertisement(data.advertisements[0])
         }
       } catch (error) {
-        logger.error("Error fetching advertisement:", error)
+        console.error("Error fetching advertisement:", error)
       } finally {
         setLoading(false)
       }

@@ -102,9 +102,9 @@ export default function ModernAdminDashboard() {
 
   return (
     <div>
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+      {/* Header Section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
                 Welcome back, {session?.user?.name || 'Administrator'}
@@ -801,7 +801,6 @@ export default function ModernAdminDashboard() {
             </div>
           </TabsContent>
         </Tabs>
-      </div>
     </div>
   )
 }

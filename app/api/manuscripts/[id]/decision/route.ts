@@ -53,7 +53,7 @@ export async function POST(
         userId: article[0].authorId,
         title: `Editorial Decision: ${article[0].title}`,
         message: `Your manuscript has received an editorial decision: ${decision.replace("_", " ")}. ${comments}`,
-        type: "editorial",
+        type: "system",
         relatedId: manuscriptId,
         isRead: false,
         createdAt: new Date(),

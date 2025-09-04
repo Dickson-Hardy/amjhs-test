@@ -257,7 +257,7 @@ export const ROLES = {
   SECTION_EDITOR: "section-editor",
   GUEST_EDITOR: "guest-editor",
   PRODUCTION_EDITOR: "production-editor",
-  ASSOCIATE_EDITOR: "editor",
+  ASSOCIATE_EDITOR: "associate-editor",
   REVIEWER: "reviewer",
   AUTHOR: "author"
 } as const

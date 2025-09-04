@@ -11,7 +11,8 @@ import {
   editorProfiles,
   editorAssignments,
   recommendedReviewers,
-  reviewInvitations
+  reviewInvitations,
+  manuscript_screenings
 } from "./db/schema"
 import { eq, and, sql, inArray, not } from "drizzle-orm"
 import { sendReviewInvitation, sendWorkflowNotification, sendEmail } from "./email-hybrid"
@@ -173,6 +174,17 @@ async function createSystemNotification(
       isRead: false,
       createdAt: new Date()
     })
+
+    // Also create a message entry for the messaging system
+    await db.insert(notifications).values({
+      userId: userId,
+      title: title,
+      message: message,
+      type: type === "system" ? "system" : "editorial",
+      relatedId: relatedId,
+      isRead: false,
+      createdAt: new Date()
+    })
   } catch (error) {
           // Failed to create system notification
   }
@@ -227,7 +239,7 @@ export class ReviewerAssignmentService {
           eq(users.isActive, true),
           eq(reviewerProfiles.isActive, true),
           eq(reviewerProfiles.availabilityStatus, "available"),
-          sql`${reviewerProfiles.currentReviewLoad} < ${reviewerProfiles.maxReviewsPerMonth}`,
+          sql`COALESCE(${reviewerProfiles.currentReviewLoad}, 0) < COALESCE(${reviewerProfiles.maxReviewsPerMonth}, 3)`,
           sql`${reviewerProfiles.qualityScore} >= ${criteria.minQualityScore}`,
           not(inArray(users.id, [...excludeUsers, article.authorId, ...criteria.excludeConflicts].filter((id): id is string => !!id)))
         ))
@@ -236,12 +248,12 @@ export class ReviewerAssignmentService {
       const scoredReviewers = availableReviewers
         .map(reviewer => {
           const expertiseMatch = this.calculateExpertiseMatch(
-            reviewer.expertise as string[] || [], 
+(reviewer.expertise as string[]) || [], 
             criteria.expertise
           )
           const workloadScore = this.calculateWorkloadScore(
-            reviewer.currentLoad || 0,
-            reviewer.maxReviews || 3
+            reviewer.currentLoad ?? 0,
+            reviewer.maxReviews ?? 3
           )
           const qualityScore = (reviewer.qualityScore || 0) / 100
           const reliabilityScore = this.calculateReliabilityScore(
@@ -834,7 +846,7 @@ export class ReviewerAssignmentService {
             "REVIEW_ASSIGNED",
             "New Review Assignment",
             `You have been assigned to review: "${article.title}"`,
-            articleId
+            article.id
           )
 
           assignedReviewers.push(reviewerId)
@@ -1034,10 +1046,10 @@ export class ArticleSubmissionService {
 
         // Notify editor
         await sendWorkflowNotification(
-          suitableEditor.email,
+          suitableEditor.id,
           "New Submission Assigned",
           `A new article "${articleData.title}" has been assigned to you for editorial review.`,
-          { articleId, submissionId }
+          submissionId
         )
 
         // Create notification
@@ -1052,10 +1064,10 @@ export class ArticleSubmissionService {
 
       // Notify author of successful submission
       await sendWorkflowNotification(
-        author.email,
+        authorId,
         "Submission Received",
         `Your article "${articleData.title}" has been successfully submitted and is now under review.`,
-        { articleId, submissionId }
+        submissionId
       )
 
       // Create notification for author
@@ -1488,7 +1500,7 @@ export class ReviewManagementService {
         if (reviewer) {
           await createSystemNotification(
             reviewer.id,
-            "REVIEW_OVERDUE",
+            "reminder",
             "Review Overdue",
             "You have an overdue review. Please submit it as soon as possible.",
             review.articleId ?? undefined
@@ -1566,29 +1578,140 @@ export class EditorialAssistantService {
         (screeningData.notes ? `Notes: ${screeningData.notes}` : '')
 
       if (allChecksPass) {
-        // Move to under_review stage (simplified workflow)
+        // Save screening record to manuscript_screenings table
+        await db.insert(manuscript_screenings).values({
+          manuscript_id: submissionId,
+          editorial_assistant_id: editorialAssistantId,
+          screening_status: "passed",
+          screening_decision: "proceed_to_associate_editor",
+          file_completeness: screeningData.fileCompleteness,
+          plagiarism_check: screeningData.plagiarismCheck,
+          format_compliance: screeningData.formatCompliance,
+          ethical_compliance: screeningData.ethicalCompliance,
+          language_quality: screeningData.languageQuality || false,
+          quality_score: qualityScore,
+          completeness_score: completenessScore,
+          overall_assessment: "Manuscript meets all initial screening criteria",
+          screening_started_at: new Date(),
+          screening_completed_at: new Date(),
+          screening_duration_minutes: 0,
+          screening_notes: screeningData.notes || "",
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+
+        // Move to associate_editor_assignment stage (next step in workflow)
         await this.updateSubmissionStatus(
           submissionId,
-          "under_review",
+          "associate_editor_assignment",
           editorialAssistantId,
-          screeningNotes + "\n\nManuscript approved for peer review"
+          screeningNotes + "\n\nManuscript approved for associate editor assignment"
         )
+
+        // Auto-assign to the single associate editor
+        try {
+          const autoAssignResult = await this.autoAssignToAssociateEditor(
+            submissionId,
+            editorialAssistantId
+          )
+          
+          if (autoAssignResult.success) {
+            logger.info("Auto-assigned to associate editor:", { 
+              submissionId, 
+              associateEditorId: autoAssignResult.associateEditorId
+            })
+          } else {
+            logger.warn("Failed to auto-assign to associate editor:", { 
+              submissionId, 
+              reason: autoAssignResult.message 
+            })
+          }
+        } catch (autoAssignError) {
+          logger.error("Failed to auto-assign associate editor:", { submissionId, error: autoAssignError })
+          // Continue without auto-assignment - manual assignment can be done later
+        }
 
         // Notify editorial assistant of successful screening
         await this.createSystemNotification(
           editorialAssistantId,
-          "SCREENING_COMPLETED",
+          "screening",
           "Screening Completed",
           `Manuscript ${submission.id} passed initial screening`,
           submissionId
         )
 
+        // Notify author of successful screening and next steps
+        const article = await db.select({
+          id: articles.id,
+          title: articles.title,
+          authorId: articles.authorId
+        })
+        .from(articles)
+        .where(eq(articles.id, submission.articleId!))
+        .limit(1)
+        .then(results => results[0] || null)
+
+        if (article) {
+          await this.createSystemNotification(
+            article.authorId!,
+            "submission",
+            "Screening Passed",
+            `Your manuscript "${article.title}" has passed initial screening and is now under review.`,
+            submissionId
+          )
+
+          // Send email notification to author
+          try {
+            const author = await db.select({
+              email: users.email,
+              name: users.name
+            })
+            .from(users)
+            .where(eq(users.id, article.authorId!))
+            .limit(1)
+            .then(results => results[0] || null)
+
+            if (author?.email) {
+              await sendEmail(
+                author.email,
+                "Manuscript Screening Completed - Under Review",
+                `Dear ${author.name},\n\nYour manuscript "${article.title}" has successfully passed our initial screening process and is now under peer review.\n\nWe will notify you of the next steps as the review process continues.\n\nBest regards,\nEditorial Team`
+              )
+            }
+          } catch (emailError) {
+            logger.error("Failed to send screening notification email:", emailError)
+          }
+        }
+
         return {
           success: true,
-          message: "Screening completed successfully - manuscript approved for review",
-          nextStatus: "under_review"
+          message: "Screening completed successfully - manuscript assigned to associate editor",
+          nextStatus: "associate_editor_assignment"
         }
       } else {
+        // Save failed screening record to manuscript_screenings table
+        await db.insert(manuscript_screenings).values({
+          manuscript_id: submissionId,
+          editorial_assistant_id: editorialAssistantId,
+          screening_status: "failed",
+          screening_decision: "return_to_author",
+          file_completeness: screeningData.fileCompleteness,
+          plagiarism_check: screeningData.plagiarismCheck,
+          format_compliance: screeningData.formatCompliance,
+          ethical_compliance: screeningData.ethicalCompliance,
+          language_quality: screeningData.languageQuality || false,
+          quality_score: qualityScore,
+          completeness_score: completenessScore,
+          overall_assessment: "Manuscript requires revisions before proceeding",
+          screening_started_at: new Date(),
+          screening_completed_at: new Date(),
+          screening_duration_minutes: 0,
+          screening_notes: screeningData.notes || "",
+          author_feedback: this.generateAuthorFeedback(screeningData),
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+
         // Return to author for revision
         await this.updateSubmissionStatus(
           submissionId,
@@ -1612,11 +1735,33 @@ export class EditorialAssistantService {
         if (article) {
           await this.createSystemNotification(
             article.authorId!,
-            "REVISION_REQUESTED",
+            "submission",
             "Revision Required",
             `Your manuscript "${article.title}" requires revisions based on initial screening`,
             submissionId
           )
+
+          // Send email notification to author with revision details
+          try {
+            const author = await db.select({
+              email: users.email,
+              name: users.name
+            })
+            .from(users)
+            .where(eq(users.id, article.authorId!))
+            .limit(1)
+            .then(results => results[0] || null)
+
+            if (author?.email) {
+              await sendEmail(
+                author.email,
+                "Manuscript Revision Required",
+                `Dear ${author.name},\n\nYour manuscript "${article.title}" has been reviewed and requires revisions before it can proceed to peer review.\n\nRevision details:\n${this.generateAuthorFeedback(screeningData)}\n\nPlease address these issues and resubmit your manuscript.\n\nBest regards,\nEditorial Team`
+              )
+            }
+          } catch (emailError) {
+            logger.error("Failed to send revision notification email:", emailError)
+          }
         }
 
         return {
@@ -1710,6 +1855,36 @@ export class EditorialAssistantService {
   }
 
   /**
+   * Find an available associate editor for assignment
+   */
+  private async findAvailableAssociateEditor(): Promise<{ id: string; name: string; email: string } | null> {
+    try {
+      // Get all associate editors
+      const associateEditors = await db.select({
+        id: users.id,
+        name: users.name,
+        email: users.email
+      })
+      .from(users)
+      .where(eq(users.role, "associate-editor"))
+      .limit(10) // Reasonable limit
+
+      if (associateEditors.length === 0) {
+        return null
+      }
+
+      // For now, use round-robin assignment (simple approach)
+      // In future, can be enhanced with workload balancing, expertise matching, etc.
+      const randomIndex = Math.floor(Math.random() * associateEditors.length)
+      return associateEditors[randomIndex]
+
+    } catch (error) {
+      logger.error("Error finding available associate editor:", error)
+      return null
+    }
+  }
+
+  /**
    * Assign manuscript to associate editor
    */
   async assignAssociateEditor(
@@ -1735,6 +1910,26 @@ export class EditorialAssistantService {
 
       if (!submission) {
         return { success: false, message: "Submission not found" }
+      }
+
+      // Check if associate editor is already assigned
+      if (submission.articleId) {
+        const existingArticle = await db.select({
+          id: articles.id,
+          editorId: articles.editorId,
+          status: articles.status
+        })
+        .from(articles)
+        .where(eq(articles.id, submission.articleId))
+        .limit(1)
+        .then(results => results[0] || null)
+
+        if (existingArticle?.editorId) {
+          return { 
+            success: false, 
+            message: "An associate editor is already assigned to this manuscript. Only one associate editor is allowed per manuscript." 
+          }
+        }
       }
 
       // Update submission with associate editor assignment
@@ -1796,8 +1991,50 @@ export class EditorialAssistantService {
       }
 
     } catch (error) {
-      logger.error("Error assigning associate editor:", { operation: 'assignAssociateEditor', articleId, error })
+      logger.error("Error assigning associate editor:", { operation: 'assignAssociateEditor', submissionId, error })
       return { success: false, message: "Failed to assign associate editor" }
+    }
+  }
+
+  /**
+   * Auto-assign manuscript to the single associate editor
+   * (Used when there's only one associate editor who handles all manuscripts)
+   */
+  async autoAssignToAssociateEditor(
+    submissionId: string,
+    editorialAssistantId: string
+  ): Promise<{ success: boolean; message: string; associateEditorId?: string }> {
+    try {
+      // Find the single associate editor
+      const associateEditor = await db.select({
+        id: users.id,
+        email: users.email,
+        name: users.name
+      })
+      .from(users)
+      .where(eq(users.role, 'associate-editor'))
+      .limit(1)
+      .then(results => results[0] || null)
+
+      if (!associateEditor) {
+        return { success: false, message: "No associate editor found in the system" }
+      }
+
+      // Use the existing assignment logic
+      const result = await this.assignAssociateEditor(
+        submissionId,
+        associateEditor.id,
+        editorialAssistantId
+      )
+
+      return {
+        ...result,
+        associateEditorId: associateEditor.id
+      }
+
+    } catch (error) {
+      logger.error("Error auto-assigning to associate editor:", { operation: 'autoAssignToAssociateEditor', submissionId, error })
+      return { success: false, message: "Failed to auto-assign to associate editor" }
     }
   }
 
@@ -1827,7 +2064,7 @@ export class EditorialAssistantService {
   }
 
   /**
-   * Create system notification
+   * Create system notification and corresponding message
    */
   private async createSystemNotification(
     userId: string,
@@ -1836,6 +2073,7 @@ export class EditorialAssistantService {
     message: string,
     referenceId?: string
   ): Promise<void> {
+    // Create notification only
     await db.insert(notifications).values({
       userId: userId,
       type: type,

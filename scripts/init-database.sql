@@ -1,5 +1,5 @@
 -- =====================================================
--- AMHSJ (African Medical and Health Sciences Journal)
+-- AMHSJ (Advances in Medicine & Health Sciences Journal)
 -- Complete Database Schema - Neon PostgreSQL Compatible
 -- =====================================================
 
@@ -450,7 +450,7 @@ CREATE TRIGGER update_articles_search_vector
 -- INITIAL SYSTEM SETTINGS
 -- =====================================================
 INSERT INTO system_settings (key, value, data_type, category, description, is_public) VALUES
-('journal_name', 'African Medical and Health Sciences Journal', 'string', 'general', 'Official journal name', true),
+('journal_name', 'Advances in Medicine & Health Sciences Journal', 'string', 'general', 'Official journal name', true),
 ('journal_abbreviation', 'AMHSJ', 'string', 'general', 'Journal abbreviation', true),
 ('issn_print', '2789-1234', 'string', 'general', 'Print ISSN', true),
 ('issn_online', '2789-5678', 'string', 'general', 'Online ISSN', true),
@@ -479,7 +479,7 @@ ON CONFLICT (key) DO NOTHING;
 
 -- Create admin user
 INSERT INTO users (id, email, name, role, is_verified, affiliation, bio) VALUES
-(uuid_generate_v4(), 'admin@amhsj.org', 'System Administrator', 'admin', true, 'AMHSJ Publishing', 'System administrator for the African Medical and Health Sciences Journal platform.')
+(uuid_generate_v4(), 'admin@amhsj.org', 'System Administrator', 'admin', true, 'AMHSJ Publishing', 'System administrator for the Advances in Medicine & Health Sciences Journal platform.')
 ON CONFLICT (email) DO NOTHING;
 
 -- Create sample editor

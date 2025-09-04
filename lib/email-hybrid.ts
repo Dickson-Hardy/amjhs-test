@@ -339,7 +339,7 @@ export async function sendWorkflowNotification(
 		html,
 		text: message,
 		priority: false,
-		category: 'user_notification'
+		category: 'editorial'
 	})
 }
 

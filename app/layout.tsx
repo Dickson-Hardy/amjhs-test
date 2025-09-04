@@ -10,8 +10,8 @@ import RegisterServiceWorker from "@/app/register-sw"
 import SiteFooter from "@/components/site-footer"
 
 
-// Initialize backup scheduler in production
-if (typeof window === 'undefined') {
+// Initialize backup scheduler only in production
+if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
   import('@/lib/backup').then(({ initializeBackupScheduler }) => {
     initializeBackupScheduler()
   }).catch(console.error)

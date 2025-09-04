@@ -191,7 +191,7 @@ export const emailTemplates = {
                 <img src="${logo.url}" alt="${logo.alt}" class="logo" width="${logo.width}" height="${logo.height}" />
               </div>
               <div class="header-text">ADVANCES IN MEDICINE & HEALTH SCIENCES</div>
-              <p class="header-subtitle">Journal of Bayelsa Medical University</p>
+              <p class="header-subtitle">International Medical Research Journal</p>
             </div>
             <div class="content">
               <h2>Welcome to AMHSJ, ${name}!</h2>
@@ -212,7 +212,7 @@ export const emailTemplates = {
             </div>
             <div class="footer">
               <p>&copy; ${new Date().getFullYear()} Advances in Medicine & Health Sciences Journal</p>
-              <p>Bayelsa Medical University</p>
+              <p>International Medical Research Journal</p>
             </div>
           </div>
         </body>

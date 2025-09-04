@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { logError } from "@/lib/logger"
 import { db } from "@/lib/db"
 import { submissions, articles, users } from "@/lib/db/schema"
-import { eq, and, or, isNull, notInArray } from "drizzle-orm"
+import { eq, and, or, isNull, notInArray, sql } from "drizzle-orm"
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,17 +51,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Build query with joins
-    const query = db
+    let query = db
       .select({
         id: submissions.id,
         status: submissions.status,
         createdAt: submissions.createdAt,
         updatedAt: submissions.updatedAt,
         authorId: submissions.authorId,
+        articleId: submissions.articleId,
         title: articles.title,
         abstract: articles.abstract,
         keywords: articles.keywords,
-        submissionType: articles.submissionType,
+        category: articles.category, // Using category instead of submissionType
         coAuthors: articles.coAuthors,
         authorName: users.name,
         authorEmail: users.email,
@@ -69,28 +70,27 @@ export async function GET(request: NextRequest) {
       .from(submissions)
       .leftJoin(articles, eq(submissions.articleId, articles.id))
       .leftJoin(users, eq(submissions.authorId, users.id))
+
+    if (whereCondition) {
+      query = query.where(whereCondition)
+    }
+
+    const results = await query
       .limit(limit)
       .offset(offset)
       .orderBy(submissions.createdAt)
 
-    if (whereCondition) {
-      query.where(whereCondition)
-    }
-
-    const results = await query
-
     // Get total count for pagination
     let totalQuery = db
-      .select({ count: submissions.id })
+      .select({ count: sql<number>`count(*)` })
       .from(submissions)
-      .leftJoin(articles, eq(submissions.articleId, articles.id))
 
     if (whereCondition) {
       totalQuery = totalQuery.where(whereCondition)
     }
 
     const totalResults = await totalQuery
-    const total = totalResults.length
+    const total = Number(totalResults[0]?.count || 0)
 
     // Format the results
     const formattedSubmissions = results.map(submission => ({
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
       title: submission.title || 'Untitled Submission',
       abstract: submission.abstract,
       keywords: submission.keywords || [],
-      submissionType: submission.submissionType,
+      category: submission.category, // Using category instead of submissionType
       coAuthors: submission.coAuthors || [],
       authorId: submission.authorId,
       authorName: submission.authorName,

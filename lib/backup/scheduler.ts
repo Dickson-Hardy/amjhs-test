@@ -29,12 +29,23 @@ interface BackupSchedule {
 
 class BackupScheduler {
   private scheduledJobs: Map<string, cron.ScheduledTask> = new Map()
+  private initialized: boolean = false
 
   constructor() {
-    this.initializeDefaultSchedules()
+    if (process.env.NODE_ENV === 'production') {
+      this.initializeDefaultSchedules()
+    } else {
+      logInfo('🔧 Backup scheduler disabled in development mode')
+    }
   }
 
   private initializeDefaultSchedules() {
+    if (this.initialized) {
+      logWarn('⚠️ Backup scheduler already initialized, skipping...')
+      return
+    }
+    
+    this.initialized = true
     // Default daily database backup at 2:00 AM
     this.addSchedule({
       id: 'daily-database',

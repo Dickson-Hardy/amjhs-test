@@ -824,14 +824,38 @@ export default function ManuscriptScreeningPage() {
                           <Button 
                             size="sm" 
                             disabled={!communicationText.trim() || sendingCommunication}
-                            onClick={() => {
+                            onClick={async () => {
                               setSendingCommunication(true)
-                              // Add send logic here
-                              setTimeout(() => {
+                              try {
+                                const response = await fetch('/api/messages', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    recipientType: 'author',
+                                    recipientId: submission.authorId,
+                                    subject: `Regarding your submission: ${submission.title}`,
+                                    content: communicationText,
+                                    messageType: 'editorial',
+                                    priority: 'medium',
+                                    submissionId: submission.id
+                                  })
+                                })
+
+                                if (response.ok) {
+                                  toast.success("Message sent to authors")
+                                  setCommunicationText("")
+                                } else {
+                                  const error = await response.json()
+                                  toast.error(error.error || "Failed to send message")
+                                }
+                              } catch (error) {
+                                console.error('Error sending message:', error)
+                                toast.error("Failed to send message")
+                              } finally {
                                 setSendingCommunication(false)
-                                toast.success("Message sent to authors")
-                                setCommunicationText("")
-                              }, 2000)
+                              }
                             }}
                           >
                             {sendingCommunication ? (

@@ -50,7 +50,7 @@ export class WorkflowIntegrationService {
       // Create system notification
       await this.createSystemNotification(
         authorId,
-        "submission_received",
+        "submission",
         `Your manuscript "${articleData.title}" has been submitted successfully.`,
         { submissionId: result.submissionId, articleId: result.article?.id }
       )
@@ -105,7 +105,7 @@ export class WorkflowIntegrationService {
       // Create system notification
       await this.createSystemNotification(
         metadata.userId,
-        "status_updated",
+        "system",
         `Submission status updated to: ${newStatus}`,
         { submissionId, newStatus, previousStatus: result.previousStatus }
       )
@@ -160,7 +160,7 @@ export class WorkflowIntegrationService {
       // Create system notification
       await this.createSystemNotification(
         editorId,
-        "editor_assigned",
+        "system",
         "You have been assigned as editor for a new submission.",
         { submissionId, assignmentId: result.assignmentId }
       )
@@ -224,7 +224,7 @@ export class WorkflowIntegrationService {
         reviewerIds.map(reviewerId =>
           this.createSystemNotification(
             reviewerId,
-            "reviewer_assigned",
+            "review",
             "You have been assigned as reviewer for a new submission.",
             { submissionId, deadline: metadata.deadline }
           )
@@ -355,6 +355,7 @@ export class WorkflowIntegrationService {
           <p>Submission ID: ${submissionId}</p>
           <p>We will notify you of the next steps in the review process.</p>
         `,
+        category: 'editorial',
         priority: true
       })
 

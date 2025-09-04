@@ -34,3 +34,5 @@ SET data = REPLACE(data::text, 'technical_check', 'editorial_assistant_review'):
 WHERE data::text LIKE '%technical_check%';
 
 COMMIT;
+
+

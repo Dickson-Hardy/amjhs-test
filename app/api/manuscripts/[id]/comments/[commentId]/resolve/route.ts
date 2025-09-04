@@ -65,7 +65,7 @@ export async function PATCH(
           created_at
         ) VALUES (
           ${comment.user_id},
-          'comment_resolved',
+          'system',
           'Your comment has been resolved',
           ${`${resolverName} marked your comment as resolved`},
           ${JSON.stringify({ 

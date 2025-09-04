@@ -84,7 +84,7 @@ export default function ReviewerGuidelinesPage() {
           <CardContent>
             <div className="prose max-w-none">
               <p className="text-gray-700 mb-4">
-                As a peer reviewer for the African Medical and Health Sciences Journal (AMHSJ), you play a crucial 
+                As a peer reviewer for the Advances in Medicine & Health Sciences Journal (AMHSJ), you play a crucial 
                 role in maintaining the quality and integrity of medical literature. Your expertise helps ensure 
                 that published research meets the highest scientific standards and contributes meaningfully to 
                 advancing healthcare in Africa and globally.

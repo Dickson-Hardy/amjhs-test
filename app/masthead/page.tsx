@@ -9,7 +9,7 @@ export default function MastheadPage() {
     subtitle: "Advancing Modern Hardware & Software Journal",
     issn: "2789-4567 (Online)",
     publisher: "AMHSJ Publishing",
-    frequency: "Monthly",
+    frequency: "By Volume",
     language: "English",
     founded: "2010",
     impactFactor: "5.2",

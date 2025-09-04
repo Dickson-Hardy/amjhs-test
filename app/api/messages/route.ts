@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { logError } from "@/lib/logger"
 import { messageCreationSchema } from "@/lib/enhanced-validations"
-import { db } from "@/lib/db"
+import { db, sql } from "@/lib/db"
 import { messages, conversations, users } from "@/lib/db/schema"
 import { eq, and, desc, or } from "drizzle-orm"
 
@@ -145,6 +145,19 @@ export async function POST(request: Request) {
         if (admin.length) {
           recipientId = admin[0].id
           recipientName = admin[0].name || "Administrator"
+        }
+      } else if (validatedData.recipientType === 'author') {
+        // Handle direct message to author by ID
+        if (validatedData.recipientId) {
+          const author = await db
+            .select({ id: users.id, name: users.name })
+            .from(users)
+            .where(eq(users.id, validatedData.recipientId))
+            .limit(1)
+          if (author.length) {
+            recipientId = author[0].id
+            recipientName = author[0].name || "Author"
+          }
         }
       } else if (validatedData.recipientType === 'editor') {
         const editor = await db
