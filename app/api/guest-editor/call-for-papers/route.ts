@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { specialIssues } from "@/lib/db/schema"
+import { issues } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { logError } from "@/lib/logger"
 
@@ -14,8 +14,8 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Fetch active call for papers from database
-    const callsForPapers = await db.select().from(specialIssues).where(eq(specialIssues.isActive, true))
+    // Fetch active call for papers from database (special issues)
+    const callsForPapers = await db.select().from(issues).where(eq(issues.specialIssue, true))
     
     // If no active calls, return a default one
     if (callsForPapers.length === 0) {
@@ -46,15 +46,15 @@ export async function GET() {
     // Map database results to expected format
     const formattedCalls = callsForPapers.map(issue => ({
       id: issue.id,
-      title: issue.title,
-      description: issue.description,
-      deadline: issue.submissionDeadline?.toISOString().split('T')[0],
-      status: issue.isActive ? 'published' : 'draft',
+      title: issue.title || "Special Issue Call for Papers",
+      description: issue.description || "Call for papers for special issue",
+      deadline: issue.publishedDate?.toISOString().split('T')[0] || "2024-12-31",
+      status: issue.status === 'published' ? 'published' : 'draft',
       distributionChannels: ["Journal Website", "Academic Networks"],
       responsesReceived: 0, // Could be calculated from submissions
-      submissionGuidelines: issue.guidelines || "Follow standard submission guidelines",
+      submissionGuidelines: issue.description || "Follow standard submission guidelines",
       expectedSubmissions: 25,
-      publishedDate: issue.createdAt?.toISOString().split('T')[0],
+      publishedDate: issue.createdAt?.toISOString().split('T')[0] || "2024-01-01",
       promotionStrategy: "Multi-channel academic promotion"
     }))
 
