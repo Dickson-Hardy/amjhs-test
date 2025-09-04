@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { logError } from "@/lib/logger"
 import { db } from "@/lib/db"
 import { submissions, articles, users } from "@/lib/db/schema"
-import { eq, inArray, desc } from "drizzle-orm"
+import { eq, or, desc } from "drizzle-orm"
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,12 +22,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Get manuscripts that need editorial assistant attention
-    const relevantStatuses = ["submitted", "editorial_assistant_review", "associate_editor_assignment"]
-    
     const manuscriptsData = await db
       .select()
       .from(submissions)
-      .where(inArray(submissions.status, relevantStatuses))
+      .where(or(
+        eq(submissions.status, "submitted"),
+        eq(submissions.status, "editorial_assistant_review"),
+        eq(submissions.status, "associate_editor_assignment")
+      ))
       .orderBy(desc(submissions.createdAt))
 
     // Get associated articles and authors

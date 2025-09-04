@@ -91,6 +91,13 @@ export default function AuthorMessagesPage() {
   const [composeMode, setComposeMode] = useState(false)
   const [replyMode, setReplyMode] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [newMessage, setNewMessage] = useState({
+    recipientType: 'editor' as 'editor' | 'admin' | 'editorial-assistant' | 'associate-editor',
+    subject: '',
+    content: '',
+    submissionId: ''
+  })
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -112,7 +119,7 @@ export default function AuthorMessagesPage() {
   const fetchMessages = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/user/messages`)
+      const response = await fetch(`/api/messaging`)
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
@@ -209,6 +216,114 @@ export default function AuthorMessagesPage() {
         description: "Failed to delete message",
         variant: "destructive"
       })
+    }
+  }
+
+  const sendMessage = async () => {
+    if (!newMessage.subject.trim() || !newMessage.content.trim()) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setSending(true)
+      const response = await fetch(`/api/messaging`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          recipientType: newMessage.recipientType,
+          subject: newMessage.subject,
+          content: newMessage.content,
+          submissionId: newMessage.submissionId || undefined,
+          messageType: "general",
+          priority: "medium"
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          toast({
+            title: "Success",
+            description: "Message sent successfully"
+          })
+          setComposeMode(false)
+          setNewMessage({
+            recipientType: 'editor',
+            subject: '',
+            content: '',
+            submissionId: ''
+          })
+          fetchMessages() // Refresh messages
+        }
+      } else {
+        throw new Error('Failed to send message')
+      }
+    } catch (error) {
+      console.error("Error sending message:", error)
+      toast({
+        title: "Error",
+        description: "Failed to send message",
+        variant: "destructive"
+      })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const sendReply = async () => {
+    if (!selectedMessage) return
+
+    try {
+      setSending(true)
+      const replySubject = selectedMessage.subject.startsWith('Re: ') 
+        ? selectedMessage.subject 
+        : `Re: ${selectedMessage.subject}`
+
+      const response = await fetch(`/api/messaging`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          recipientType: 'editor', // Reply to original sender
+          recipientId: selectedMessage.sender.id,
+          subject: replySubject,
+          content: (document.getElementById('replyContent') as HTMLTextAreaElement)?.value || '',
+          submissionId: selectedMessage.submissionId || undefined,
+          messageType: selectedMessage.messageType || "general",
+          priority: selectedMessage.priority || "medium"
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          toast({
+            title: "Success",
+            description: "Reply sent successfully"
+          })
+          setReplyMode(false)
+          fetchMessages() // Refresh messages
+        }
+      } else {
+        throw new Error('Failed to send reply')
+      }
+    } catch (error) {
+      console.error("Error sending reply:", error)
+      toast({
+        title: "Error",
+        description: "Failed to send reply",
+        variant: "destructive"
+      })
+    } finally {
+      setSending(false)
     }
   }
 
@@ -428,10 +543,10 @@ export default function AuthorMessagesPage() {
                                 <span>{new Date(message.createdAt).toLocaleDateString()}</span>
                               </div>
                               <div className="flex items-center gap-2 mt-2">
-                                <Badge className={getPriorityColor(message.priority)} variant="outline" size="sm">
+                                <Badge className={getPriorityColor(message.priority)} variant="outline">
                                   {message.priority}
                                 </Badge>
-                                <Badge className={getStatusColor(message.status)} variant="outline" size="sm">
+                                <Badge className={getStatusColor(message.status)} variant="outline">
                                   {message.status}
                                 </Badge>
                               </div>
@@ -570,12 +685,41 @@ export default function AuthorMessagesPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="subject">Subject</Label>
-                  <Input id="subject" placeholder="Enter message subject" />
+                  <Label htmlFor="recipientType">To</Label>
+                  <Select 
+                    value={newMessage.recipientType} 
+                    onValueChange={(value: 'editor' | 'admin' | 'editorial-assistant' | 'associate-editor') => 
+                      setNewMessage(prev => ({ ...prev, recipientType: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="editor">Editor</SelectItem>
+                      <SelectItem value="associate-editor">Associate Editor</SelectItem>
+                      <SelectItem value="editorial-assistant">Editorial Assistant</SelectItem>
+                      <SelectItem value="admin">Administrator</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="recipient">To</Label>
-                  <Input id="recipient" placeholder="Select recipient" />
+                  <Label htmlFor="subject">Subject</Label>
+                  <Input 
+                    id="subject" 
+                    placeholder="Enter message subject"
+                    value={newMessage.subject}
+                    onChange={(e) => setNewMessage(prev => ({ ...prev, subject: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="submissionId">Related Submission (Optional)</Label>
+                  <Input 
+                    id="submissionId" 
+                    placeholder="Enter submission ID if this message relates to a specific submission"
+                    value={newMessage.submissionId}
+                    onChange={(e) => setNewMessage(prev => ({ ...prev, submissionId: e.target.value }))}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="content">Message</Label>
@@ -583,15 +727,23 @@ export default function AuthorMessagesPage() {
                     id="content"
                     placeholder="Type your message..."
                     rows={6}
+                    value={newMessage.content}
+                    onChange={(e) => setNewMessage(prev => ({ ...prev, content: e.target.value }))}
                   />
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setComposeMode(false)}>
                     Cancel
                   </Button>
-                  <Button>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Message
+                  <Button onClick={sendMessage} disabled={sending}>
+                    {sending ? (
+                      "Sending..."
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Message
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -626,9 +778,15 @@ export default function AuthorMessagesPage() {
                   <Button variant="outline" onClick={() => setReplyMode(false)}>
                     Cancel
                   </Button>
-                  <Button>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Reply
+                  <Button onClick={sendReply} disabled={sending}>
+                    {sending ? (
+                      "Sending..."
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Reply
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>

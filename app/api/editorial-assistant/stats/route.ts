@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { logError } from "@/lib/logger"
 import { db } from "@/lib/db"
 import { submissions } from "@/lib/db/schema"
-import { eq, inArray, gte, lte, sql, and } from "drizzle-orm"
+import { eq, or, gte, lte, sql, and } from "drizzle-orm"
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,11 +26,13 @@ export async function GET(request: NextRequest) {
     const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
 
     // Get total pending manuscripts
-    const pendingStatuses = ["submitted", "editorial_assistant_review"]
     const totalPending = await db
       .select({ count: sql<number>`count(*)` })
       .from(submissions)
-      .where(inArray(submissions.status, pendingStatuses))
+      .where(or(
+        eq(submissions.status, "submitted"),
+        eq(submissions.status, "editorial_assistant_review")
+      ))
 
     // Get manuscripts screened today
     const screenedToday = await db
@@ -49,7 +51,10 @@ export async function GET(request: NextRequest) {
       .from(submissions)
       .where(
         and(
-          inArray(submissions.status, pendingStatuses),
+          or(
+            eq(submissions.status, "submitted"),
+            eq(submissions.status, "editorial_assistant_review")
+          ),
           lte(submissions.createdAt, oneWeekAgo)
         )
       )

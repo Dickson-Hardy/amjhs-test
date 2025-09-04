@@ -15,8 +15,8 @@ export async function GET(request: Request) {
 
     // Get current date for calculations
     const now = new Date()
-    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const thisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const lastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
 
     // Get total users
     const totalUsersResult = await db
@@ -52,8 +52,7 @@ export async function GET(request: Request) {
       .where(eq(reviews.status, "pending"))
 
     // Get active reviewers (reviewers with at least one review in the last 3 months)
-    const threeMonthsAgo = new Date()
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+    const threeMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1))
     
     const activeReviewersResult = await db
       .select({ 

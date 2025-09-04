@@ -93,12 +93,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       orderBy = desc(articles.publishedDate)
     }
 
-    const result = await query.orderBy(orderBy).limit(limit).offset(offset) as any[]
+    const result = await query.orderBy(orderBy).limit(limit).offset(offset)
 
     // Get total count for pagination
-    const totalQuery = db.select().from(articles)
+    let totalQuery = db.select().from(articles)
     if (conditions.length > 0) {
-      totalQuery.where(and(...conditions))
+      totalQuery = totalQuery.where(and(...conditions))
     }
     const totalResults = await totalQuery
 

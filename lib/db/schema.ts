@@ -303,6 +303,8 @@ export const conversations = pgTable("conversations", {
   type: text("type").notNull(), // review, submission, editorial, system
   relatedId: uuid("related_id"), // article_id, review_id, etc.
   relatedTitle: text("related_title"),
+  participant1Id: uuid("participant1_id").references(() => users.id),
+  participant2Id: uuid("participant2_id").references(() => users.id),
   participants: jsonb("participants").$type<{ id: string; name: string; role: string }[]>(),
   lastMessageId: uuid("last_message_id"),
   lastActivity: timestamp("last_activity").defaultNow(),
@@ -314,7 +316,6 @@ export const messages = pgTable("messages", {
   id: uuid("id").defaultRandom().primaryKey(),
   conversationId: uuid("conversation_id").references(() => conversations.id),
   senderId: uuid("sender_id").references(() => users.id),
-  recipientId: uuid("recipient_id").references(() => users.id),
   subject: text("subject"),
   content: text("content").notNull(),
   messageType: text("message_type").default("general"), // editorial, review, system, general

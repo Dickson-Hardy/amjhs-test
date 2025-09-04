@@ -47,7 +47,7 @@ interface Message {
 }
 
 interface NewMessage {
-  recipientType: 'editor' | 'reviewer' | 'admin';
+  recipientType: 'editor' | 'reviewer' | 'admin' | 'editorial-assistant' | 'associate-editor';
   subject: string;
   content: string;
 }
@@ -79,7 +79,7 @@ export default function SubmissionMessagesPage() {
   const fetchMessages = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/manuscripts/${params.id}/messages`)
+      const response = await fetch(`/api/messaging?submissionId=${params.id}`)
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
@@ -102,7 +102,7 @@ export default function SubmissionMessagesPage() {
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
-          const submission = data.submissions.find((s: unknown) => s.id === params.id)
+          const submission = data.submissions.find((s: { id: string, title: string }) => s.id === params.id)
           if (submission) {
             setSubmissionTitle(submission.title)
           }
@@ -127,13 +127,18 @@ export default function SubmissionMessagesPage() {
 
     try {
       setSubmitting(true)
-      const response = await fetch(`/api/manuscripts/${params.id}/messages`, {
+      const response = await fetch(`/api/messaging`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...newMessage,
+          recipientType: newMessage.recipientType,
+          subject: newMessage.subject,
+          content: newMessage.content,
+          submissionId: params.id,
+          messageType: "editorial",
+          priority: "medium",
           parentMessageId: replyTo,
         }),
       })
@@ -155,7 +160,7 @@ export default function SubmissionMessagesPage() {
           })
         }
       } else {
-        throw new AppError('Failed to send message')
+        throw new Error('Failed to send message')
       }
     } catch (error) {
       handleError(error, { 
@@ -283,7 +288,7 @@ export default function SubmissionMessagesPage() {
                   <Label htmlFor="recipient">Recipient Type</Label>
                   <Select 
                     value={newMessage.recipientType} 
-                    onValueChange={(value: 'editor' | 'reviewer' | 'admin') => 
+                    onValueChange={(value: 'editor' | 'reviewer' | 'admin' | 'editorial-assistant' | 'associate-editor') => 
                       setNewMessage(prev => ({ ...prev, recipientType: value }))
                     }
                   >
@@ -292,6 +297,8 @@ export default function SubmissionMessagesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="editor">Editor</SelectItem>
+                      <SelectItem value="associate-editor">Associate Editor</SelectItem>
+                      <SelectItem value="editorial-assistant">Editorial Assistant</SelectItem>
                       <SelectItem value="reviewer">Reviewer</SelectItem>
                       <SelectItem value="admin">Administrator</SelectItem>
                     </SelectContent>

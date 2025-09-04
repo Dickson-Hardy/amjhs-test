@@ -86,7 +86,7 @@ export function ResponsiveDashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-amhsj-background">
+    <div className="min-h-screen bg-slate-50">
       {/* Mobile Overlay */}
       {isMobile && sidebarOpen && (
         <div 
@@ -96,7 +96,7 @@ export function ResponsiveDashboardLayout({
       )}
 
       {/* Fixed Header */}
-      <header className="fixed top-0 inset-x-0 h-16 bg-white border-b border-amhsj-border z-50 flex items-center px-6 header">
+      <header className="fixed top-0 inset-x-0 h-16 bg-white border-b border-gray-200 z-50 flex items-center px-6 header">
         {/* Logo & Title */}
         <div className="flex items-center">
           {/* Mobile menu button */}
@@ -119,8 +119,8 @@ export function ResponsiveDashboardLayout({
               className="object-contain"
             />
             <div className="leading-tight">
-              <h1 className="text-sm font-semibold text-amhsj-primary">{title}</h1>
-              <p className="text-[10px] text-amhsj-text-light">{subtitle}</p>
+              <h1 className="text-sm font-semibold text-blue-800">{title}</h1>
+              <p className="text-[10px] text-gray-500">{subtitle}</p>
             </div>
           </div>
         </div>
@@ -153,7 +153,7 @@ export function ResponsiveDashboardLayout({
               <Button variant="ghost" className="h-10 px-2 flex items-center gap-2">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={(session?.user as any)?.image || ""} />
-                  <AvatarFallback className="bg-amhsj-primary text-white text-sm font-medium">
+                  <AvatarFallback className="bg-blue-800 text-white text-sm font-medium">
                     {session?.user?.name?.charAt(0) || 'U'}
                   </AvatarFallback>
                 </Avatar>
@@ -191,7 +191,7 @@ export function ResponsiveDashboardLayout({
       <div className="pt-16 flex">
         {/* Desktop Sidebar */}
         <aside className={cn(
-          "fixed top-16 bottom-0 left-0 w-64 bg-white border-r border-amhsj-border overflow-y-auto transition-transform duration-300 z-30 sidebar",
+          "fixed top-16 bottom-0 left-0 w-64 bg-white border-r border-gray-200 overflow-y-auto transition-transform duration-300 z-30 sidebar",
           isMobile ? "hidden" : "block"
         )}>
           <nav className="p-4 space-y-1">
@@ -223,7 +223,7 @@ export function ResponsiveDashboardLayout({
 
         {/* Mobile Sidebar Overlay */}
         {isMobile && sidebarOpen && (
-          <aside className="fixed top-16 bottom-0 left-0 w-64 bg-white border-r border-amhsj-border overflow-y-auto z-40 md:hidden sidebar">
+          <aside className="fixed top-16 bottom-0 left-0 w-64 bg-white border-r border-gray-200 overflow-y-auto z-40 md:hidden sidebar">
             <nav className="p-4 space-y-1">
               {navigationItems.map(item => {
                 const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')
@@ -254,10 +254,10 @@ export function ResponsiveDashboardLayout({
         )}
 
         <main className={cn(
-          "flex-1 h-[calc(100vh-4rem)] overflow-y-auto p-4 bg-amhsj-background relative z-10 dashboard-content",
-          isMobile ? "ml-0 pb-16" : "ml-64"
+          "h-[calc(100vh-4rem)] overflow-y-auto bg-slate-50 relative z-10 dashboard-content",
+          isMobile ? "ml-0 pb-16 w-full" : "ml-64 w-[calc(100vw-16rem)]"
         )}>
-          <div className="max-w-7xl mx-auto relative z-20">
+          <div className="w-full h-full relative z-20">
             {children}
           </div>
         </main>

@@ -169,7 +169,7 @@ export default function EditorialAssistantDashboard() {
   return (
     <RouteGuard allowedRoles={["editorial-assistant", "managing-editor", "editor-in-chief", "admin"]}>
       <EditorLayout>
-        <div className="space-y-4 relative z-20 dashboard-content">
+        <div className="p-4 space-y-4 relative z-20 dashboard-content min-h-full w-full">
           <div className="mb-4">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Editorial Assistant Dashboard
