@@ -191,47 +191,17 @@ export function ResponsiveDashboardLayout({
       <div className="pt-16 flex">
         {/* Desktop Sidebar */}
         <aside className={cn(
-          "fixed top-16 bottom-0 left-0 w-64 bg-white border-r border-gray-200 overflow-y-auto transition-transform duration-300 z-30 sidebar",
+          "fixed top-16 bottom-0 left-0 w-64 bg-white border-r border-gray-200 z-30 sidebar flex flex-col",
           isMobile ? "hidden" : "block"
         )}>
-          <nav className="p-4 space-y-1">
-            {navigationItems.map(item => {
-              const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 p-3 rounded-md text-sm transition-colors',
-                    isActive 
-                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  )}
-                >
-                  <item.icon className={cn('h-5 w-5', isActive ? 'text-indigo-600' : 'text-slate-400')} />
-                  <span className="flex-1">
-                    <span className="block font-medium leading-tight">{item.label}</span>
-                    {item.description && (
-                      <span className="block text-[11px] text-slate-500 leading-tight">{item.description}</span>
-                    )}
-                  </span>
-                </Link>
-              )
-            })}
-          </nav>
-        </aside>
-
-        {/* Mobile Sidebar Overlay */}
-        {isMobile && sidebarOpen && (
-          <aside className="fixed top-16 bottom-0 left-0 w-64 bg-white border-r border-gray-200 overflow-y-auto z-40 md:hidden sidebar">
-            <nav className="p-4 space-y-1">
+          <nav className="flex-1 overflow-y-auto p-4">
+            <div className="space-y-1">
               {navigationItems.map(item => {
                 const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={() => setSidebarOpen(false)}
                     className={cn(
                       'flex items-center gap-3 p-3 rounded-md text-sm transition-colors',
                       isActive 
@@ -249,7 +219,52 @@ export function ResponsiveDashboardLayout({
                   </Link>
                 )
               })}
+            </div>
+          </nav>
+        </aside>
+
+        {/* Mobile Sidebar Overlay */}
+        {isMobile && sidebarOpen && (
+          <aside className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white border-r border-gray-200 z-40 md:hidden sidebar flex flex-col max-h-screen">
+            <div className="flex-shrink-0 h-16 border-b border-gray-200 flex items-center px-4 bg-white">
+              <h2 className="text-lg font-semibold text-gray-900">Navigation</h2>
+            </div>
+            <nav className="flex-1 overflow-y-auto py-2 px-3" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="space-y-1 pb-safe-area-inset-bottom">
+                {navigationItems.map(item => {
+                  const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/')
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setSidebarOpen(false)}
+                      className={cn(
+                        'flex items-center gap-3 p-4 rounded-lg text-sm transition-colors min-h-[64px] touch-manipulation block w-full',
+                        isActive 
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' 
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100'
+                      )}
+                    >
+                      <item.icon className={cn('h-6 w-6 flex-shrink-0', isActive ? 'text-indigo-600' : 'text-slate-400')} />
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-medium leading-tight text-base">{item.label}</span>
+                        {item.description && (
+                          <span className="block text-sm text-slate-500 leading-tight mt-1">{item.description}</span>
+                        )}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
             </nav>
+            <div className="flex-shrink-0 border-t border-gray-200 p-4 bg-white pb-safe-area-inset-bottom">
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="w-full flex items-center justify-center gap-2 p-3 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors touch-manipulation min-h-[48px]"
+              >
+                <span className="text-base">Close Menu</span>
+              </button>
+            </div>
           </aside>
         )}
 
