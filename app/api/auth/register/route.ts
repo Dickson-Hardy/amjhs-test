@@ -17,7 +17,10 @@ import {
 } from "@/lib/api-utils"
 import { z } from "zod"
 import { 
-  RegistrationData
+  RegistrationData,
+  QualificationData,
+  PublicationData,
+  ReferenceData
 } from "@/types/registration"
 
 // Validation schemas
@@ -26,25 +29,25 @@ const QualificationSchema = z.object({
   institution: z.string().min(1, "Institution is required"), 
   year: z.number().int().min(1950).max(new Date().getFullYear() + 10),
   field: z.string().min(1, "Field is required")
-}).optional()
+})
 
 const PublicationSchema = z.object({
   title: z.string().min(1, "Title is required"),
   journal: z.string().min(1, "Journal is required"),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1),
   doi: z.string().optional(),
-  role: z.string().optional()
-}).optional()
+  role: z.enum(["first_author", "corresponding_author", "co_author"]).default("co_author")
+})
 
 const ReferenceSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Valid email required"),
   affiliation: z.string().min(1, "Affiliation is required"),
   relationship: z.string().min(1, "Relationship is required")
-}).optional()
+})
 
 const RegistrationSchema = z.object({
-  // process.env.AUTH_BASIC_PREFIX || "process.env.AUTH_BASIC_PREFIX || "Basic ""info (can be nested or flat)
+  // Basic info (can be nested or flat)
   basicInfo: z.object({
     name: z.string().min(1, "Name is required"),
     email: z.string().email("Valid email required"),
@@ -81,7 +84,7 @@ const RegistrationSchema = z.object({
   specializations: z.array(z.string()).optional(),
   languagesSpoken: z.array(z.string()).optional(),
   maxReviewsPerMonth: z.number().optional(),
-  availabilityStatus: z.string().optional(),
+  availabilityStatus: z.enum(["available", "limited", "unavailable"]).optional(),
   qualifications: z.array(QualificationSchema).optional(),
   publications: z.array(PublicationSchema).optional(),
   references: z.array(ReferenceSchema).optional()
@@ -93,7 +96,7 @@ async function registerUser(request: NextRequest) {
   logger.api("User registration attempt started", {
     requestId,
     endpoint: "/api/auth/register",
-    ip: request.ip || 'unknown'
+    ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
   })
 
   try {
@@ -115,8 +118,15 @@ async function registerUser(request: NextRequest) {
         orcid: validatedData.basicInfo.orcid,
         role: validatedData.basicInfo.role,
         researchInterests: validatedData.basicInfo.researchInterests,
-        // Merge role-specific data
-        ...validatedData.roleSpecificData
+        // Merge role-specific data with proper type casting
+        expertise: validatedData.roleSpecificData?.expertise,
+        specializations: validatedData.roleSpecificData?.specializations,
+        languagesSpoken: validatedData.roleSpecificData?.languagesSpoken,
+        maxReviewsPerMonth: validatedData.roleSpecificData?.maxReviewsPerMonth,
+        availabilityStatus: validatedData.roleSpecificData?.availabilityStatus,
+        qualifications: validatedData.roleSpecificData?.qualifications as QualificationData[] | undefined,
+        publications: validatedData.roleSpecificData?.publications as PublicationData[] | undefined,
+        references: validatedData.roleSpecificData?.references as ReferenceData[] | undefined
       }
     } else {
       // Handle flat structure from simple signup page
@@ -133,13 +143,13 @@ async function registerUser(request: NextRequest) {
         languagesSpoken: validatedData.languagesSpoken,
         maxReviewsPerMonth: validatedData.maxReviewsPerMonth,
         availabilityStatus: validatedData.availabilityStatus,
-        qualifications: validatedData.qualifications,
-        publications: validatedData.publications,
-        references: validatedData.references
+        qualifications: validatedData.qualifications as QualificationData[] | undefined,
+        publications: validatedData.publications as PublicationData[] | undefined,
+        references: validatedData.references as ReferenceData[] | undefined
       }
     }
 
-    // process.env.AUTH_BASIC_PREFIX || "process.env.AUTH_BASIC_PREFIX || "Basic ""sanitization and normalization
+    // Data sanitization and normalization
     const role = (registrationData.role || ROLES.AUTHOR).toLowerCase()
     if (!['author', 'reviewer', 'editor'].includes(role)) {
       throw new Error("Invalid role specified")
@@ -152,7 +162,7 @@ async function registerUser(request: NextRequest) {
     }
 
     const safeQualifications = Array.isArray(registrationData.qualifications)
-      ? registrationData.qualifications.map(q => ({
+      ? registrationData.qualifications.filter((q): q is NonNullable<typeof q> => q != null).map(q => ({
           degree: String(q.degree ?? ""),
           institution: String(q.institution ?? ""),
           year: Number(q.year ?? new Date().getFullYear()),
@@ -161,17 +171,17 @@ async function registerUser(request: NextRequest) {
       : undefined
 
     const safePublications = Array.isArray(registrationData.publications)
-      ? registrationData.publications.map(p => ({
+      ? registrationData.publications.filter((p): p is NonNullable<typeof p> => p != null).map(p => ({
           title: String(p.title ?? ""),
           journal: String(p.journal ?? ""),
           year: Number(p.year ?? new Date().getFullYear()),
           doi: p.doi ? String(p.doi) : undefined,
-          role: p.role as any
+          role: (p.role as "first_author" | "corresponding_author" | "co_author") || "co_author"
         }))
       : undefined
 
     const safeReferences = Array.isArray(registrationData.references)
-      ? registrationData.references.map(r => ({
+      ? registrationData.references.filter((r): r is NonNullable<typeof r> => r != null).map(r => ({
           name: String(r.name ?? ""),
           email: String(r.email ?? ""),
           affiliation: String(r.affiliation ?? ""),
@@ -214,7 +224,7 @@ async function registerUser(request: NextRequest) {
       logger.security("Registration attempt for existing user", {
         requestId,
         email: normalized.email,
-        ip: request.ip
+        ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
       })
 
       // If account exists, decide whether to resend verification or return conflict
@@ -368,7 +378,10 @@ async function registerUser(request: NextRequest) {
           return inserted
         })
       } catch (txErr) {
-        logger.warn("Transaction failed, falling back to sequential writes:", txErr)
+        logger.warn("Transaction failed, falling back to sequential writes", {
+          requestId,
+          error: txErr instanceof Error ? txErr.message : String(txErr)
+        })
         useTransaction = false
       }
     }
@@ -394,7 +407,11 @@ async function registerUser(request: NextRequest) {
       try {
         await sendEmailVerification(normalized.email!, normalized.name!, verificationUrl)
       } catch (e) {
-        logger.warn("Email verification send failed, continuing registration:", e)
+        logger.warn("Email verification send failed, continuing registration", {
+          requestId,
+          email: normalized.email,
+          error: e instanceof Error ? e.message : String(e)
+        })
       }
     } else {
       logger.warn("Skipping verification email: email_verification_token column not present in users table")
@@ -776,7 +793,7 @@ function buildApplicationData(data: RegistrationData) {
 function calculateProfileCompleteness(data: RegistrationData): number {
   let score = 0
 
-  // process.env.AUTH_BASIC_PREFIX || "process.env.AUTH_BASIC_PREFIX || "Basic ""info (40%)
+  // Basic info (40%)
   if (data.name) score += 10
   if (data.email) score += 10
   if (data.affiliation) score += 10
