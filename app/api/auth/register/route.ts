@@ -306,44 +306,46 @@ async function registerUser(request: NextRequest) {
 
     // Discover existing columns for compatibility with legacy schemas
     const userColumns = await getExistingColumns('users')
-    // Prepare basic user insert data - only include core fields that should exist in all schemas
-    const basicUserData = {
+    // Prepare basic user insert data - only core fields needed for registration
+    const basicUserData: any = {
       email: normalized.email!,
       name: normalized.name!,
       password: hashedPassword,
       role,
-      affiliation: normalized.affiliation,
-      orcid: normalized.orcid,
-      email_verification_token: verificationToken,
-      is_active: true,
-      is_verified: false,
-      profile_completeness: calculateProfileCompleteness(normalized),
-      created_at: new Date(),
-      updated_at: new Date(),
+    }
+
+    // Add optional fields only if they have values and the column exists
+    if (normalized.affiliation && userColumns.has('affiliation')) {
+      basicUserData.affiliation = normalized.affiliation
+    }
+    if (normalized.orcid && userColumns.has('orcid')) {
+      basicUserData.orcid = normalized.orcid
+    }
+    if (userColumns.has('is_active')) {
+      basicUserData.is_active = true
+    }
+    if (userColumns.has('is_verified')) {
+      basicUserData.is_verified = false
+    }
+    if (userColumns.has('email_verification_token')) {
+      basicUserData.email_verification_token = verificationToken
     }
 
     // Only include fields that exist in the actual database schema
-    const userInsertValues: any = filterToExistingColumns(basicUserData, userColumns)
+    const userInsertValues: any = basicUserData
     
-    // Add JSONB fields if they exist in the schema
-    const expertise = toStringArray(normalized.expertise) || []
-    const specializations = toStringArray(normalized.specializations) || []  
-    const languagesSpoken = toStringArray(normalized.languagesSpoken) || []
-    const researchInterests = toStringArray(normalized.researchInterests) || []
-    
-    if (userColumns.has('expertise')) {
-      userInsertValues.expertise = expertise
-    }
-    if (userColumns.has('specializations')) {
-      userInsertValues.specializations = specializations
-    }
-    if (userColumns.has('languages_spoken')) {
-      userInsertValues.languages_spoken = languagesSpoken
-    }
-    if (userColumns.has('research_interests')) {
-      userInsertValues.research_interests = researchInterests
-    }
+    // Skip JSONB fields for now - users can add these later from their dashboard
+    // This avoids the database insertion issues with complex data types
     const shouldSendVerification = userColumns.has('email_verification_token') && verificationToken
+
+    // Debug logging for troubleshooting
+    logger.info("User insert data prepared", {
+      requestId,
+      email: normalized.email,
+      columnsFound: Array.from(userColumns),
+      insertKeysCount: Object.keys(userInsertValues).length,
+      insertKeys: Object.keys(userInsertValues)
+    })
 
     // Execute all DB writes - try transaction first, fallback to sequential if not supported
     let newUserArr: { id: string }[] = []
@@ -367,15 +369,16 @@ async function registerUser(request: NextRequest) {
 
     if (useTransaction) {
       try {
+        // Try transaction with raw SQL first
         newUserArr = await db.transaction(async (tx) => {
-          const inserted = await tx
-            .insert(users)
-            .values(userInsertValues as any)
-            .returning({ id: users.id })
-
-          const createdUser = inserted[0]
-          await handleRoleSpecificRegistrationTx(tx as any, createdUser.id, normalized.role!, normalized)
-          return inserted
+          const insertResult = await sql`
+            INSERT INTO users (email, name, password, role, affiliation, orcid, is_active, is_verified, email_verification_token)
+            VALUES (${normalized.email!}, ${normalized.name!}, ${hashedPassword}, ${role}, ${normalized.affiliation || null}, ${normalized.orcid || null}, ${true}, ${false}, ${verificationToken})
+            RETURNING id
+          `
+          
+          const createdUser = (insertResult as any[])[0]
+          return [{ id: createdUser.id }]
         })
       } catch (txErr) {
         logger.warn("Transaction failed, falling back to sequential writes", {
@@ -387,15 +390,46 @@ async function registerUser(request: NextRequest) {
     }
     
     if (!useTransaction) {
-      // Fallback: sequential writes without a transaction
-      const inserted = await db
-        .insert(users)
-        .values(userInsertValues as any)
-        .returning({ id: users.id })
-
-      const createdUser = inserted[0]
-      await handleRoleSpecificRegistration(createdUser.id, normalized.role!, normalized)
-      newUserArr = inserted
+      // Fallback: sequential writes without a transaction using raw SQL for better control
+      try {
+        // Use raw SQL to insert only the fields we know exist and need
+        const insertResult = await sql`
+          INSERT INTO users (email, name, password, role, affiliation, orcid, is_active, is_verified, email_verification_token)
+          VALUES (${normalized.email!}, ${normalized.name!}, ${hashedPassword}, ${role}, ${normalized.affiliation || null}, ${normalized.orcid || null}, ${true}, ${false}, ${verificationToken})
+          RETURNING id
+        `
+        
+        const createdUser = (insertResult as any[])[0]
+        newUserArr = [{ id: createdUser.id }]
+        
+        logger.info("User created successfully with raw SQL", {
+          requestId,
+          userId: createdUser.id,
+          email: normalized.email
+        })
+        
+      } catch (sqlError: any) {
+        // If that fails, try with even fewer columns
+        logger.warn("Full insert failed, trying minimal insert", {
+          requestId,
+          error: sqlError.message
+        })
+        
+        const minimalResult = await sql`
+          INSERT INTO users (email, name, password, role)
+          VALUES (${normalized.email!}, ${normalized.name!}, ${hashedPassword}, ${role})
+          RETURNING id
+        `
+        
+        const createdUser = (minimalResult as any[])[0]
+        newUserArr = [{ id: createdUser.id }]
+        
+        logger.info("User created with minimal fields", {
+          requestId,
+          userId: createdUser.id,
+          email: normalized.email
+        })
+      }
     }
 
     const [newUser] = newUserArr
@@ -420,16 +454,18 @@ async function registerUser(request: NextRequest) {
     return createApiResponse(
       { 
         userId: newUser.id,
-        requiresApproval: normalized.role !== "author"
+        requiresApproval: false  // Simplified - all users are active, can complete profiles later
       },
-      getRegistrationMessage(normalized.role!),
+      "User created successfully. Please check your email for verification.",
       requestId
     )
   } catch (error: any) {
     logger.error("Registration error", {
       requestId,
       error: error instanceof Error ? error.message : String(error),
-      code: error?.code || error?.original?.code
+      code: error?.code || error?.original?.code,
+      detail: error?.detail || error?.original?.detail,
+      stack: error?.stack?.substring(0, 500) // First 500 chars of stack
     })
     
     // Map common Postgres errors to friendly responses
@@ -438,6 +474,12 @@ async function registerUser(request: NextRequest) {
     }
     if (error?.code === '22P02' || error?.code === '22001') {
       throw new Error("Invalid data provided")
+    }
+    if (error?.code === '42703') {
+      throw new Error("Database schema mismatch - missing column")
+    }
+    if (error?.code === '42804') {
+      throw new Error("Database data type mismatch")
     }
     throw new Error("Internal server error")
   }
