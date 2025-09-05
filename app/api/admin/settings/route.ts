@@ -107,7 +107,7 @@ async function loadJournalSettings() {
     // Return default settings if none found
     return {
       journalName: "Academic Medical Journal of Health Sciences",
-      issn: "2789-4567",
+      issn: null, // Will be set through admin interface
       description: "A peer-reviewed medical journal focused on health sciences research and clinical practice.",
       reviewPeriod: 21,
       minimumReviewers: 2,
@@ -124,7 +124,7 @@ async function loadJournalSettings() {
     // Return default settings on error
     return {
       journalName: "Academic Medical Journal of Health Sciences", 
-      issn: "2789-4567",
+      issn: null, // Will be set through admin interface
       description: "A peer-reviewed medical journal focused on health sciences research and clinical practice.",
       reviewPeriod: 21,
       minimumReviewers: 2,

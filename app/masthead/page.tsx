@@ -1,21 +1,15 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Mail, ExternalLink } from "lucide-react"
+import { Mail, ExternalLink, Loader2 } from "lucide-react"
+import { useJournalInfo } from "@/hooks/use-journal-info"
 
 export default function MastheadPage() {
-  const journalInfo = {
-    title: "Advances in Medicine and Health Sciences Journal (AMHSJ)",
-    subtitle: "Advancing Modern Hardware & Software Journal",
-    issn: "2789-4567 (Online)",
-    publisher: "AMHSJ Publishing",
-    frequency: "By Volume",
-    language: "English",
-    founded: "2010",
-    impactFactor: "5.2",
-    indexing: ["PubMed", "Scopus", "Web of Science", "DOAJ", "Google Scholar"],
-  }
+  const { journalInfo, loading, error } = useJournalInfo()
 
+  // Editorial team data (could also be moved to database in the future)
   const editorialTeam = {
     editorInChief: {
       name: "Prof Tubonye C Harry",
@@ -91,52 +85,81 @@ export default function MastheadPage() {
           </p>
         </div>
 
-        {/* Journal Information */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-2xl text-center">{journalInfo.title}</CardTitle>
-            <CardDescription className="text-center text-lg">{journalInfo.subtitle}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="text-center">
-                <h3 className="font-semibold text-gray-800 mb-2">ISSN</h3>
-                <p className="text-gray-600">{journalInfo.issn}</p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold text-gray-800 mb-2">Publisher</h3>
-                <p className="text-gray-600">{journalInfo.publisher}</p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold text-gray-800 mb-2">Frequency</h3>
-                <p className="text-gray-600">{journalInfo.frequency}</p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold text-gray-800 mb-2">Language</h3>
-                <p className="text-gray-600">{journalInfo.language}</p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold text-gray-800 mb-2">Founded</h3>
-                <p className="text-gray-600">{journalInfo.founded}</p>
-              </div>
-              <div className="text-center">
-                <h3 className="font-semibold text-gray-800 mb-2">Impact Factor</h3>
-                <p className="text-gray-600 font-bold text-lg">{journalInfo.impactFactor}</p>
-              </div>
-            </div>
+        {/* Loading State */}
+        {loading && (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <span className="ml-2">Loading journal information...</span>
+          </div>
+        )}
 
-            <div className="mt-6">
-              <h3 className="font-semibold text-gray-800 mb-3 text-center">Indexed In</h3>
-              <div className="flex flex-wrap justify-center gap-2">
-                {journalInfo.indexing.map((index, idx) => (
-                  <Badge key={idx} variant="secondary">
-                    {index}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-8">
+            <p>Error loading journal information: {error}</p>
+          </div>
+        )}
+
+        {/* Journal Information */}
+        {journalInfo && (
+          <>
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="text-2xl text-center">
+                  {journalInfo.name || "Advances in Medicine and Health Sciences Journal (AMHSJ)"}
+                </CardTitle>
+                <CardDescription className="text-center text-lg">
+                  {journalInfo.description || "Advancing Modern Healthcare Research"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="text-center">
+                    <h3 className="font-semibold text-gray-800 mb-2">ISSN</h3>
+                    <p className="text-gray-600">
+                      {journalInfo.onlineIssn ? `${journalInfo.onlineIssn} (Online)` : 
+                       journalInfo.printIssn ? `${journalInfo.printIssn} (Print)` : 
+                       "To be assigned"}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <h3 className="font-semibold text-gray-800 mb-2">Publisher</h3>
+                    <p className="text-gray-600">{journalInfo.publisher || "AMHSJ Publishing"}</p>
+                  </div>
+                  <div className="text-center">
+                    <h3 className="font-semibold text-gray-800 mb-2">Frequency</h3>
+                    <p className="text-gray-600">{journalInfo.frequency || "Quarterly"}</p>
+                  </div>
+                  <div className="text-center">
+                    <h3 className="font-semibold text-gray-800 mb-2">Language</h3>
+                    <p className="text-gray-600">English</p>
+                  </div>
+                  <div className="text-center">
+                    <h3 className="font-semibold text-gray-800 mb-2">Founded</h3>
+                    <p className="text-gray-600">{journalInfo.establishedYear || "2010"}</p>
+                  </div>
+                  <div className="text-center">
+                    <h3 className="font-semibold text-gray-800 mb-2">Impact Factor</h3>
+                    <p className="text-gray-600 font-bold text-lg">
+                      {journalInfo.impactFactor || "Pending"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <h3 className="font-semibold text-gray-800 mb-3 text-center">Indexed In</h3>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {(journalInfo.indexing || ["PubMed", "Scopus", "Web of Science", "DOAJ", "Google Scholar"]).map((index, idx) => (
+                      <Badge key={idx} variant="secondary">
+                        {index}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
 
         {/* Editor-in-Chief */}
         <Card className="mb-8">
@@ -235,39 +258,41 @@ export default function MastheadPage() {
         </Card>
 
         {/* Contact Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Editorial Office Contact</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-3">Mailing Address</h3>
-                <p className="text-gray-600">
-                  AMHSJ Editorial Office
-                  <br />
-                  123 Research Drive
-                  <br />
-                  Innovation City, IC 12345
-                  <br />
-                  United States
-                </p>
+        {journalInfo && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Editorial Office Contact</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-3">Mailing Address</h3>
+                  <p className="text-gray-600">
+                    AMHSJ Editorial Office
+                    <br />
+                    123 Research Drive
+                    <br />
+                    Innovation City, IC 12345
+                    <br />
+                    United States
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-3">Contact Details</h3>
+                  <p className="text-gray-600 mb-2">
+                    <strong>Email:</strong> {journalInfo.email || "editor@amhsj.org"}
+                  </p>
+                  <p className="text-gray-600 mb-2">
+                    <strong>Phone:</strong> +1 (555) 123-4567
+                  </p>
+                  <p className="text-gray-600">
+                    <strong>Website:</strong> {journalInfo.website || "www.amhsj.org"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-3">Contact Details</h3>
-                <p className="text-gray-600 mb-2">
-                  <strong>Email:</strong> editor@amhsj.org
-                </p>
-                <p className="text-gray-600 mb-2">
-                  <strong>Phone:</strong> +1 (555) 123-4567
-                </p>
-                <p className="text-gray-600">
-                  <strong>Website:</strong> www.amhsj.org
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

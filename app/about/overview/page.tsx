@@ -1,3 +1,5 @@
+"use client"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -13,8 +15,10 @@ import {
   Target,
   Heart
 } from "lucide-react"
+import { useJournalInfo } from "@/hooks/use-journal-info"
 
 export default function AboutOverviewPage() {
+  const { journalInfo, loading } = useJournalInfo()
   const milestones = [
     {
       year: "2010",
@@ -51,7 +55,7 @@ export default function AboutOverviewPage() {
   const keyMetrics = [
     {
       icon: BookOpen,
-      value: "1,247",
+      value: journalInfo?.stats?.totalArticles?.toString() || "1,247",
       label: "Published Articles",
       sublabel: "Since inception"
     },
@@ -69,9 +73,9 @@ export default function AboutOverviewPage() {
     },
     {
       icon: Award,
-      value: "5.2",
+      value: journalInfo?.impactFactor?.toString() || "Pending",
       label: "Impact Factor",
-      sublabel: "2024 JCR"
+      sublabel: "Latest JCR"
     },
     {
       icon: TrendingUp,
@@ -81,7 +85,7 @@ export default function AboutOverviewPage() {
     },
     {
       icon: Calendar,
-      value: "24",
+      value: journalInfo?.stats?.totalIssues?.toString() || "24",
       label: "Issues Published",
       sublabel: "Per year"
     }

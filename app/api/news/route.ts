@@ -46,78 +46,18 @@ export async function GET(request: Request) {
       logError(dbError as Error, { endpoint: '/api/news', message: 'News table not available, using fallback data' })
     }
 
-    // If no news items or database not available, provide fallback announcements
+    // Return only database news items - no fallbacks
     if (newsItems.length === 0) {
-      const announcements = [
-        {
-          id: "announcement-1",
-          type: "announcement",
-          title: "CALL FOR SUBMISSION MANUSCRIPT",
-          publishedAt: new Date("2025-08-03"),
-          excerpt: "Authors are invited to send manuscripts in form of original articles, review papers, case reports, brief communications, letter to editor for publication in upcoming issues of AMHSJ.",
-          category: "submission"
-        },
-        {
-          id: "announcement-2", 
-          type: "announcement",
-          title: "New Editorial Board Members Appointed",
-          publishedAt: new Date("2025-07-28"),
-          excerpt: "We are pleased to announce the appointment of distinguished researchers to our editorial board, bringing expertise in cardiology, neurology, and public health.",
-          category: "editorial"
-        },
-        {
-          id: "announcement-3",
-          type: "announcement", 
-          title: "Special Issue: Digital Health Innovations in Africa",
-          publishedAt: new Date("2025-07-15"),
-          excerpt: "Call for papers for our upcoming special issue focusing on digital health technologies and their implementation across African healthcare systems.",
-          category: "special-issue"
-        },
-        {
-          id: "announcement-4",
-          type: "announcement",
-          title: "Author Warning - Predatory Journals",
-          publishedAt: new Date("2025-07-10"), 
-          excerpt: "Authors are advised to be aware of and cautious with regards to submitting articles and paying publication fee payments to scammers and predatory journals.",
-          category: "warning"
-        },
-        {
-          id: "announcement-5",
-          type: "announcement",
-          title: "Journal Impact Factor Update",
-          publishedAt: new Date("2025-06-20"),
-          excerpt: "AMHSJ's 2024 impact factor has been updated to 1.8, reflecting our continued commitment to publishing high-quality research.",
-          category: "metrics"
+      return NextResponse.json({
+        success: true,
+        news: [],
+        pagination: {
+          total: 0,
+          limit,
+          offset,
+          hasMore: false
         }
-      ]
-
-      // Get recent published articles as news
-      try {
-        const recentArticles = await db.select({
-          id: articles.id,
-          title: articles.title,
-          abstract: articles.abstract,
-          updatedAt: articles.updatedAt,
-          category: articles.category,
-        }).from(articles)
-        .where(eq(articles.status, 'published'))
-        .orderBy(desc(articles.updatedAt))
-        .limit(5)
-
-        // Add published articles as news items
-        const articleNews = recentArticles.map((article: unknown) => ({
-          id: `article-${article.id}`,
-          type: 'news',
-          title: `Published: ${article.title}`,
-          publishedAt: article.updatedAt,
-          excerpt: `New research published in ${article.category} - ${article.abstract?.substring(0, 150)}...`,
-          category: article.category
-        }))
-
-        newsItems = [...announcements, ...articleNews]
-      } catch (articleError) {
-        newsItems = announcements
-      }
+      })
     }
 
     // Filter by type if specified

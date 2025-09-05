@@ -1,9 +1,13 @@
+"use client"
+
 import Link from "next/link"
 import { BookOpen, Mail, Phone, MapPin } from "lucide-react"
 import Image from "next/image"
+import { useJournalInfo } from "@/hooks/use-journal-info"
 
 export function Footer() {
   const currentYear = new Date().getFullYear()
+  const { journalInfo } = useJournalInfo()
 
   return (
     <footer className="bg-white border-t-2 border-blue-900">
@@ -21,11 +25,17 @@ export function Footer() {
                 className="object-contain"
               />
               <h3 className="font-serif font-bold text-blue-900 text-lg">
-                Advances in Medicine & Health Sciences Journal
+                {journalInfo?.name || "Advances in Medicine & Health Sciences Journal"}
               </h3>
             </div>
             <div className="space-y-2 text-gray-700">
-              <p>Online ISSN: 2672-4596 | Print ISSN: 2672-4588</p>
+              {(journalInfo?.onlineIssn || journalInfo?.printIssn) && (
+                <p>
+                  {journalInfo.onlineIssn && `Online ISSN: ${journalInfo.onlineIssn}`}
+                  {journalInfo.onlineIssn && journalInfo.printIssn && " | "}
+                  {journalInfo.printIssn && `Print ISSN: ${journalInfo.printIssn}`}
+                </p>
+              )}
               <p>
                 This journal is protected by a{" "}
                 <Link 
@@ -56,8 +66,8 @@ export function Footer() {
                 <Mail className="h-4 w-4 mt-0.5 text-gray-500" />
                 <div>
                   <div>Editor-in-Chief:</div>
-                  <a href="process.env.EMAIL_FROMeditor@amhsj.org" className="text-blue-600 hover:text-blue-800">
-                    editor@amhsj.org
+                  <a href={`mailto:${journalInfo?.email || "editor@amhsj.org"}`} className="text-blue-600 hover:text-blue-800">
+                    {journalInfo?.email || "editor@amhsj.org"}
                   </a>
                 </div>
               </div>
@@ -127,7 +137,7 @@ export function Footer() {
             <p className="mb-2">
               <strong>AMHSJ Journals:</strong>{" "}
               <Link href="/" className="text-blue-600 hover:text-blue-800">
-                Advances in Medicine & Health Sciences Journal
+                {journalInfo?.name || "Advances in Medicine & Health Sciences Journal"}
               </Link>
             </p>
             <p>
@@ -146,7 +156,7 @@ export function Footer() {
 
         {/* Copyright */}
         <div className="border-t border-gray-200 mt-6 pt-4 text-center text-xs text-gray-600">
-          © {currentYear} Advances in Medicine & Health Sciences Journal. All rights reserved.
+          © {currentYear} {journalInfo?.name || "Advances in Medicine & Health Sciences Journal"}. All rights reserved.
         </div>
       </div>
     </footer>

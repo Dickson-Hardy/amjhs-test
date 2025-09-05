@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FileText, Upload, CheckCircle, AlertCircle, Download, Clock, Users, Award, BookOpen, Mail } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useJournalInfo } from "@/hooks/use-journal-info"
 
 export default function SubmissionGuidelinesPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const { journalInfo } = useJournalInfo()
 
   const handleStartSubmission = () => {
     router.push('/submit')
@@ -124,7 +126,9 @@ export default function SubmissionGuidelinesPage() {
             <div className="text-sm text-blue-700 space-y-1">
               <p>• Peer-review timeframe: <strong>14 days</strong></p>
               <p>• Publication timeline: <strong>4-6 weeks after submission</strong></p>
-              <p>• ISSN: Print 2672-4588 | Online 2672-4596</p>
+              {(journalInfo?.printIssn || journalInfo?.onlineIssn) && (
+                <p>• ISSN: {journalInfo.printIssn && `Print ${journalInfo.printIssn}`}{journalInfo.printIssn && journalInfo.onlineIssn && " | "}{journalInfo.onlineIssn && `Online ${journalInfo.onlineIssn}`}</p>
+              )}
             </div>
           </div>
         </div>
@@ -513,7 +517,9 @@ export default function SubmissionGuidelinesPage() {
                   <ul className="space-y-1 text-sm text-gray-600">
                     <li>• AMHSJ retains copyright of all published work</li>
                     <li>• Citation format: Nig Del Med J 2017; 2: 1-5</li>
-                    <li>• ISSN: Print 2672-4588 | Online 2672-4596</li>
+                    {(journalInfo?.printIssn || journalInfo?.onlineIssn) && (
+                      <li>• ISSN: {journalInfo.printIssn && `Print ${journalInfo.printIssn}`}{journalInfo.printIssn && journalInfo.onlineIssn && " | "}{journalInfo.onlineIssn && `Online ${journalInfo.onlineIssn}`}</li>
+                    )}
                   </ul>
                 </div>
               </div>
@@ -550,7 +556,15 @@ export default function SubmissionGuidelinesPage() {
                 <div className="space-y-3 text-sm">
                   <div>
                     <strong>ISSN:</strong>
-                    <p className="text-gray-600">Print: 2672-4588 | Online: 2672-4596</p>
+                    {(journalInfo?.printIssn || journalInfo?.onlineIssn) ? (
+                      <p className="text-gray-600">
+                        {journalInfo.printIssn && `Print: ${journalInfo.printIssn}`}
+                        {journalInfo.printIssn && journalInfo.onlineIssn && " | "}
+                        {journalInfo.onlineIssn && `Online: ${journalInfo.onlineIssn}`}
+                      </p>
+                    ) : (
+                      <p className="text-gray-600">To be assigned</p>
+                    )}
                   </div>
                   <div>
                     <strong>License:</strong>

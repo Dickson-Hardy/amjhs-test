@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FileText, Download, AlertCircle, CheckCircle, FileSpreadsheet, Image, BookOpen } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useJournalInfo } from "@/hooks/use-journal-info"
 
 export default function ManuscriptTemplatePage() {
   const router = useRouter()
   const { toast } = useToast()
+  const { journalInfo } = useJournalInfo()
 
   const handleDownloadTemplate = (templateName: string) => {
     // Download links to actual template files
@@ -112,7 +114,9 @@ export default function ManuscriptTemplatePage() {
               Submit to: <span className="text-blue-600">editor@amhsjournal.org</span>
             </p>
             <div className="text-sm text-blue-700">
-              <p>ISSN: Print 2789-4567 | Online 2789-4568</p>
+              {(journalInfo?.printIssn || journalInfo?.onlineIssn) && (
+                <p>ISSN: {journalInfo.printIssn && `Print ${journalInfo.printIssn}`}{journalInfo.printIssn && journalInfo.onlineIssn && " | "}{journalInfo.onlineIssn && `Online ${journalInfo.onlineIssn}`}</p>
+              )}
             </div>
           </div>
         </div>

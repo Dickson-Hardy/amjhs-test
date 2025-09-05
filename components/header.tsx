@@ -12,8 +12,8 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, User, Search, Wifi, LogOut, Settings, FileText } from "lucide-react"
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Menu, User, Search, Wifi, LogOut, Settings, FileText, ChevronDown } from "lucide-react"
 import { NotificationCenter } from "@/components/notifications"
 import ModernNotificationSystem from "@/components/modern-notification-system"
 import { getRoleBasedDashboard, getRoleDisplayName } from "@/lib/role-utils"
@@ -28,10 +28,19 @@ import {
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false)
+  const [expandedItems, setExpandedItems] = useState<string[]>([])
   const { data: session, status } = useSession()
 
   const handleSignOut = async () => {
     await signOut({ callbackUrl: "/" })
+  }
+
+  const toggleExpandedItem = (itemTitle: string) => {
+    setExpandedItems(prev => 
+      prev.includes(itemTitle) 
+        ? prev.filter(title => title !== itemTitle)
+        : [...prev, itemTitle]
+    )
   }
 
   const navigationItems = [
@@ -183,13 +192,21 @@ export function Header() {
             ) : null}
 
             {/* Mobile Menu */}
-            <Sheet open={isOpen} onOpenChange={setIsOpen}>
+            <Sheet open={isOpen} onOpenChange={(open) => {
+              setIsOpen(open)
+              if (!open) {
+                setExpandedItems([]) // Reset expanded items when closing
+              }
+            }}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="sm" className="lg:hidden">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Navigation Menu</SheetTitle>
+                </SheetHeader>
                 <div className="flex flex-col space-y-4 mt-8">
                   <div className="text-center pb-4 border-b">
                     <div className="flex items-center justify-center space-x-2 mb-2">
@@ -217,17 +234,31 @@ export function Header() {
                         </Link>
                       ) : (
                         <>
-                          <h3 className="font-semibold text-gray-800 border-b pb-2">{item.title}</h3>
-                          {item.items?.map((subItem) => (
-                            <Link
-                              key={subItem.title}
-                              href={subItem.href}
-                              className="block px-3 py-2 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md"
-                              onClick={() => setIsOpen(false)}
-                            >
-                              {subItem.title}
-                            </Link>
-                          ))}
+                          <button
+                            onClick={() => toggleExpandedItem(item.title)}
+                            className="flex items-center justify-between w-full px-3 py-2 text-sm font-semibold text-gray-800 hover:text-blue-600 hover:bg-blue-50 rounded-md border-b pb-2"
+                          >
+                            <span>{item.title}</span>
+                            <ChevronDown 
+                              className={`h-4 w-4 transition-transform ${
+                                expandedItems.includes(item.title) ? 'rotate-180' : ''
+                              }`} 
+                            />
+                          </button>
+                          {expandedItems.includes(item.title) && (
+                            <div className="pl-4 space-y-1">
+                              {item.items?.map((subItem) => (
+                                <Link
+                                  key={subItem.title}
+                                  href={subItem.href}
+                                  className="block px-3 py-2 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md"
+                                  onClick={() => setIsOpen(false)}
+                                >
+                                  {subItem.title}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
                         </>
                       )}
                     </div>

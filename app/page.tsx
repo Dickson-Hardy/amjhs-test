@@ -22,11 +22,31 @@ interface Article {
   category?: string
 }
 
-interface Stats {
-  totalPapers: number
-  connectedResearchers: number
+interface JournalInfo {
+  name: string
+  shortName: string
+  description: string
+  onlineIssn: string
+  printIssn: string
   impactFactor: string
-  smartSolutions: number
+  jciScore: string
+  hIndex: string
+  totalCitations: string
+  publisher: string
+  frequency: string
+  establishedYear: string
+  subjectAreas: string[]
+  stats: {
+    totalArticles: number
+    totalVolumes: number
+    totalIssues: number
+  }
+  openAccess: boolean
+  submissionsOpen: boolean
+  license: string
+  website: string
+  email: string
+  indexing: string[]
 }
 
 interface NewsItem {
@@ -50,14 +70,12 @@ interface CurrentIssue {
 export default function HomePage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const [articles, setArticles] = useState<Article[]>([])
-  const [currentIssueArticles, setCurrentIssueArticles] = useState<Article[]>([])
-  const [recentArticles, setRecentArticles] = useState<Article[]>([])
   const [featuredArticles, setFeaturedArticles] = useState<Article[]>([])
+  const [currentIssueArticles, setCurrentIssueArticles] = useState<Article[]>([])
   const [stats, setStats] = useState({ totalArticles: 0, totalIssues: 0, totalVolumes: 0 })
   const [currentIssue, setCurrentIssue] = useState<CurrentIssue | null>(null)
-  const [announcements, setAnnouncements] = useState<any[]>([])
-  const [latestNews, setLatestNews] = useState<any[]>([])
+  const [latestNews, setLatestNews] = useState<NewsItem[]>([])
+  const [journalInfo, setJournalInfo] = useState<JournalInfo | null>(null)
   const [loading, setLoading] = useState(true)
 
   const handleSubmitManuscript = () => {
@@ -68,61 +86,63 @@ export default function HomePage() {
     }
   }
 
-  const handleMakeSubmission = () => {
-    if (session) {
-      router.push('/submit')
-    } else {
-      router.push('/auth/signup?returnUrl=' + encodeURIComponent('/submit'))
-    }
-  }
-
   useEffect(() => {
     async function fetchData() {
       try {
-        const [articlesRes, statsRes, currentIssueRes, newsRes] = await Promise.all([
+        setLoading(true)
+        
+        const [articlesRes, statsRes, currentIssueRes, newsRes, journalInfoRes] = await Promise.all([
           fetch("/api/articles?featured=true&limit=6"),
           fetch("/api/stats"),
           fetch("/api/current-issue-data"),
           fetch("/api/news?limit=5"),
+          fetch("/api/journal-info"),
         ])
 
-        const articlesData = await articlesRes.json()
-        const statsData = await statsRes.json()
-        const currentIssueData = await currentIssueRes.json()
-        const newsData = await newsRes.json()
+        // Parse all responses
+        const [articlesData, statsData, currentIssueData, newsData, journalInfoData] = await Promise.all([
+          articlesRes.json().catch(() => ({ success: false })),
+          statsRes.json().catch(() => ({ success: false })),
+          currentIssueRes.json().catch(() => ({ success: false })),
+          newsRes.json().catch(() => ({ success: false })),
+          journalInfoRes.json().catch(() => ({ success: false })),
+        ])
 
-        if (articlesData.success) {
+        // Set featured articles
+        if (articlesData.success && articlesData.articles) {
           setFeaturedArticles(articlesData.articles)
         }
 
-        if (statsData.success) {
-          setStats(statsData.stats)
+        // Set journal info first (primary source)
+        if (journalInfoData.success && journalInfoData.data) {
+          setJournalInfo(journalInfoData.data)
+          // Use journal info stats as primary source
+          if (journalInfoData.data.stats) {
+            setStats(journalInfoData.data.stats)
+          }
         }
 
+        // Override with API stats if available and more recent
+        if (statsData.success && statsData.stats) {
+          setStats(prev => ({
+            ...prev,
+            ...statsData.stats
+          }))
+        }
+
+        // Set current issue
         if (currentIssueData.success && currentIssueData.issue) {
           setCurrentIssue(currentIssueData.issue as CurrentIssue)
           setCurrentIssueArticles(currentIssueData.articles || [])
         }
 
-        // Handle news data
-        if (newsData.success) {
+        // Handle news data - only from database/API
+        if (newsData.success && newsData.news?.length > 0) {
           setLatestNews(newsData.news)
-        } else {
-          // Fallback to default announcement if API fails
-          setLatestNews([
-            {
-              id: "1",
-              title: "CALL FOR SUBMISSION MANUSCRIPT",
-              date: "August 3, 2025",
-              excerpt: "Authors are invited to send manuscripts in form of original articles, review papers, case reports, brief communications, letter to editor...",
-              link: "/call-for-submission"
-            }
-          ])
         }
       } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error("Error fetching homepage data:", error)
-        }
+        console.error("Error fetching homepage data:", error)
+        // No fallback data on error - keep empty arrays/states
       } finally {
         setLoading(false)
       }
@@ -133,8 +153,17 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      {/* Modern Hero Section */}
-      <div className="relative bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 text-white overflow-hidden">
+      {loading ? (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading journal information...</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Modern Hero Section */}
+          <div className="relative bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 text-white overflow-hidden">
         <div className="absolute inset-0 grid-background"></div>
         <div className="relative container mx-auto px-4 py-16">
           <div className="flex flex-col lg:flex-row items-center gap-12">
@@ -151,23 +180,26 @@ export default function HomePage() {
               </div>
               
               <h1 className="text-4xl lg:text-5xl font-bold mb-4 leading-tight fade-in-up delay-100">
-                Advances in Medicine & 
-                <span className="gradient-text"> Health Sciences</span>
+                {journalInfo?.name || "Advances in Medicine & Health Sciences"}
               </h1>
               
               <p className="text-xl text-blue-100 mb-6 leading-relaxed fade-in-up delay-200">
-                International peer-reviewed research published by volumes across all medical specialties
+                {journalInfo?.description || "International peer-reviewed research published by volumes across all medical specialties"}
               </p>
               
               <div className="flex flex-wrap justify-center lg:justify-start gap-4 mb-8 fade-in-up delay-300">
-                <Badge variant="secondary" className="bg-white/10 text-white border-white/20 px-4 py-2 hover-lift">
-                  Online ISSN: 2672-4596
-                </Badge>
-                <Badge variant="secondary" className="bg-white/10 text-white border-white/20 px-4 py-2 hover-lift">
-                  Print ISSN: 2672-4588
-                </Badge>
+                {journalInfo?.onlineIssn && (
+                  <Badge variant="secondary" className="bg-white/10 text-white border-white/20 px-4 py-2 hover-lift">
+                    Online ISSN: {journalInfo.onlineIssn}
+                  </Badge>
+                )}
+                {journalInfo?.printIssn && (
+                  <Badge variant="secondary" className="bg-white/10 text-white border-white/20 px-4 py-2 hover-lift">
+                    Print ISSN: {journalInfo.printIssn}
+                  </Badge>
+                )}
                 <Badge variant="secondary" className="bg-cyan-500/20 text-cyan-200 border-cyan-400/20 px-4 py-2 hover-lift">
-                  Open Access
+                  {journalInfo?.openAccess ? "Open Access" : "Subscription"}
                 </Badge>
               </div>
               
@@ -175,7 +207,7 @@ export default function HomePage() {
                 <Button 
                   size="lg" 
                   className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold px-8 py-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 button-enhanced pulse-glow"
-                  onClick={handleMakeSubmission}
+                  onClick={handleSubmitManuscript}
                 >
                   Submit Your Research
                   <ArrowRight className="ml-2 h-5 w-5" />
@@ -196,34 +228,42 @@ export default function HomePage() {
             
             {/* Stats Cards */}
             <div className="lg:w-1/3 grid grid-cols-2 gap-4 w-full max-w-md fade-in-up delay-300">
-              <Card className="bg-white/10 border-white/20 backdrop-blur-sm hover-lift glass-card">
-                <CardContent className="p-4 text-center">
-                  <TrendingUp className="h-8 w-8 text-cyan-300 mx-auto mb-2 icon-bounce" />
-                  <div className="text-2xl font-bold text-white">1.8</div>
-                  <div className="text-sm text-blue-100">Impact Factor</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/10 border-white/20 backdrop-blur-sm hover-lift glass-card">
-                <CardContent className="p-4 text-center">
-                  <Globe className="h-8 w-8 text-cyan-300 mx-auto mb-2 icon-bounce" />
-                  <div className="text-2xl font-bold text-white">0.42</div>
-                  <div className="text-sm text-blue-100">JCI Score</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/10 border-white/20 backdrop-blur-sm hover-lift glass-card">
-                <CardContent className="p-4 text-center">
-                  <BookOpen className="h-8 w-8 text-cyan-300 mx-auto mb-2 icon-bounce" />
-                  <div className="text-2xl font-bold text-white">{stats.totalArticles || '50+'}</div>
-                  <div className="text-sm text-blue-100">Published Articles</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/10 border-white/20 backdrop-blur-sm hover-lift glass-card">
-                <CardContent className="p-4 text-center">
-                  <Users className="h-8 w-8 text-cyan-300 mx-auto mb-2 icon-bounce" />
-                  <div className="text-2xl font-bold text-white">4x</div>
-                  <div className="text-sm text-blue-100">Per Year</div>
-                </CardContent>
-              </Card>
+              {journalInfo?.impactFactor && (
+                <Card className="bg-white/10 border-white/20 backdrop-blur-sm hover-lift glass-card">
+                  <CardContent className="p-4 text-center">
+                    <TrendingUp className="h-8 w-8 text-cyan-300 mx-auto mb-2 icon-bounce" />
+                    <div className="text-2xl font-bold text-white">{journalInfo.impactFactor}</div>
+                    <div className="text-sm text-blue-100">Impact Factor</div>
+                  </CardContent>
+                </Card>
+              )}
+              {journalInfo?.jciScore && (
+                <Card className="bg-white/10 border-white/20 backdrop-blur-sm hover-lift glass-card">
+                  <CardContent className="p-4 text-center">
+                    <Globe className="h-8 w-8 text-cyan-300 mx-auto mb-2 icon-bounce" />
+                    <div className="text-2xl font-bold text-white">{journalInfo.jciScore}</div>
+                    <div className="text-sm text-blue-100">JCI Score</div>
+                  </CardContent>
+                </Card>
+              )}
+              {(journalInfo?.stats?.totalArticles || stats.totalArticles) && (
+                <Card className="bg-white/10 border-white/20 backdrop-blur-sm hover-lift glass-card">
+                  <CardContent className="p-4 text-center">
+                    <BookOpen className="h-8 w-8 text-cyan-300 mx-auto mb-2 icon-bounce" />
+                    <div className="text-2xl font-bold text-white">{journalInfo?.stats?.totalArticles || stats.totalArticles}</div>
+                    <div className="text-sm text-blue-100">Published Articles</div>
+                  </CardContent>
+                </Card>
+              )}
+              {journalInfo?.frequency && (
+                <Card className="bg-white/10 border-white/20 backdrop-blur-sm hover-lift glass-card">
+                  <CardContent className="p-4 text-center">
+                    <Users className="h-8 w-8 text-cyan-300 mx-auto mb-2 icon-bounce" />
+                    <div className="text-2xl font-bold text-white">{journalInfo?.frequency?.includes('') || journalInfo?.frequency?.toLowerCase().includes('quarterly') ? '' : 'Annual'}</div>
+                    <div className="text-sm text-blue-100">Per Year</div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
         </div>
@@ -253,10 +293,10 @@ export default function HomePage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-gray-700 leading-relaxed">
-                  The Advances in Medicine & Health Sciences Journal (AMHSJ) is an international peer-reviewed journal that publishes by volumes, disseminating high-quality research across all medical and health science specialties from researchers worldwide.
+                  {journalInfo?.description || "The Advances in Medicine & Health Sciences Journal (AMHSJ) is an international peer-reviewed journal that publishes by volumes, disseminating high-quality research across all medical and health science specialties from researchers worldwide."}
                 </p>
                 <p className="text-gray-700 leading-relaxed">
-                  All articles are open access under CC BY-NC-ND 3.0, immediately free to read and download.
+                  All articles are {journalInfo?.openAccess ? "open access" : "subscription-based"} under {journalInfo?.license || "CC BY-NC-ND 3.0"}, {journalInfo?.openAccess ? "immediately free to read and download" : "available to subscribers"}.
                 </p>
                 <Link 
                   href="/about" 
@@ -311,28 +351,10 @@ export default function HomePage() {
                       </div>
                     ))
                   ) : (
-                    <div className="group">
-                      <div className="bg-gradient-to-r from-orange-50 to-red-50 p-6 rounded-xl border-l-4 border-orange-500 hover:shadow-md transition-shadow">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-                          <Link href="/call-for-submission">
-                            CALL FOR SUBMISSION MANUSCRIPT
-                          </Link>
-                        </h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
-                          <Calendar className="h-4 w-4" />
-                          August 3, 2025
-                        </div>
-                        <p className="text-gray-700 leading-relaxed mb-4">
-                          Authors are invited to send manuscripts in form of original articles, review papers, case reports, brief communications, letter to editor...
-                        </p>
-                        <Link 
-                          href="/call-for-submission" 
-                          className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium group-hover:gap-3 transition-all"
-                        >
-                          Read more
-                          <ArrowRight className="h-4 w-4" />
-                        </Link>
-                      </div>
+                    <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                      <Calendar className="h-16 w-16 mx-auto mb-6 text-gray-300" />
+                      <h3 className="text-xl font-semibold text-gray-900 mb-3">No Announcements</h3>
+                      <p className="text-gray-600 mb-6 max-w-md mx-auto">There are currently no announcements from the administration. Check back later for updates.</p>
                     </div>
                   )}
                 </div>
@@ -429,7 +451,7 @@ export default function HomePage() {
                   </Button>
                   <Button 
                     className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800"
-                    onClick={handleMakeSubmission}
+                    onClick={handleSubmitManuscript}
                   >
                     Submit Your Research
                   </Button>
@@ -486,7 +508,7 @@ export default function HomePage() {
                 
                 <div className="mt-8 pt-6 border-t border-gray-200 text-center">
                   <p className="text-gray-700 mb-4">
-                    <strong>Bayelsa Medical University</strong> is the official publisher of AMHSJ.
+                    <strong>{journalInfo?.publisher || "Bayelsa Medical University"}</strong> is the official publisher of {journalInfo?.shortName || "AMHSJ"}.
                   </p>
                   <div className="flex flex-wrap justify-center gap-6 text-blue-600">
                     <Link href="/events" className="hover:text-blue-800 font-medium">Events</Link>
@@ -567,13 +589,18 @@ export default function HomePage() {
                 <CardContent className="text-center">
                   <div className="relative group mb-4">
                     <img 
-                      src="/api/placeholder/120/150" 
-                      alt="Current Issue" 
+                      src={currentIssue?.coverImageUrl || "/api/placeholder/120/150"} 
+                      alt={currentIssue ? `Cover of ${currentIssue.title}` : "Current Issue"} 
                       className="w-24 h-30 object-cover rounded-lg shadow-md mx-auto group-hover:shadow-lg transition-shadow"
                     />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg transition-colors"></div>
                   </div>
-                  <div className="text-sm text-gray-600 mb-3 font-medium">Vol. 5 No. 2 (2025)</div>
+                  <div className="text-sm text-gray-600 mb-3 font-medium">
+                    {currentIssue?.volumeInfo 
+                      ? `${currentIssue.volumeInfo} • Issue ${currentIssue.number}`
+                      : "Latest Issue"
+                    }
+                  </div>
                   <Button size="sm" variant="outline" className="w-full" asChild>
                     <Link href="/current-issue">View Contents</Link>
                   </Button>
@@ -661,7 +688,7 @@ export default function HomePage() {
                       <div className="space-y-1 pl-2">
                         {[
                           { href: "/search", label: "Search" },
-                          { href: "/current", label: "Current Issue" },
+                          { href: "/current-issue", label: "Current Issue" },
                           { href: "/archives", label: "Archives" }
                         ].map((item) => (
                           <Link 
@@ -733,17 +760,21 @@ export default function HomePage() {
                 </h3>
                 <div className="space-y-3 text-sm text-gray-700">
                   <p>
-                    <strong>Advances in Medicine & Health Sciences Journal</strong>
+                    <strong>{journalInfo?.name || "Advances in Medicine & Health Sciences Journal"}</strong>
                   </p>
                   <div className="flex flex-wrap gap-4">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      Online ISSN: 2672-4596
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-                      Print ISSN: 2672-4588
-                    </span>
+                    {journalInfo?.onlineIssn && (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                        Online ISSN: {journalInfo.onlineIssn}
+                      </span>
+                    )}
+                    {journalInfo?.printIssn && (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 bg-green-600 rounded-full"></span>
+                        Print ISSN: {journalInfo.printIssn}
+                      </span>
+                    )}
                   </div>
                   <p>
                     This journal is protected by a{" "}
@@ -751,9 +782,8 @@ export default function HomePage() {
                       href="https://creativecommons.org/licenses/by-nc/4.0/" 
                       className="text-blue-600 hover:text-blue-800 font-medium underline decoration-dotted"
                     >
-                      Creative Commons Attribution - NonCommercial Works License
-                    </Link>{" "}
-                    (CC BY-NC 4.0)
+                      {journalInfo?.license || "Creative Commons Attribution - NonCommercial Works License (CC BY-NC 4.0)"}
+                    </Link>
                   </p>
                   <Link 
                     href="/privacy" 
@@ -774,9 +804,9 @@ export default function HomePage() {
                 </h3>
                 <div className="space-y-3 text-sm text-gray-700">
                   <div>
-                    <strong className="text-gray-900">AMHSJ Journals:</strong>{" "}
+                    <strong className="text-gray-900">{journalInfo?.shortName || "AMHSJ"} Journals:</strong>{" "}
                     <Link href="/" className="text-blue-600 hover:text-blue-800 font-medium">
-                      Advances in Medicine & Health Sciences Journal
+                      {journalInfo?.name || "Advances in Medicine & Health Sciences Journal"}
                     </Link>
                   </div>
                   <div className="pt-2 border-t border-gray-200">
@@ -798,11 +828,13 @@ export default function HomePage() {
           
           <div className="mt-8 pt-8 border-t border-gray-200 text-center">
             <p className="text-sm text-gray-600">
-              © 2025 Bayelsa Medical University. All rights reserved.
+              © {new Date().getFullYear()} {journalInfo?.publisher || "Bayelsa Medical University"}. All rights reserved.
             </p>
           </div>
         </footer>
       </div>
+        </>
+      )}
     </div>
   )
 }
