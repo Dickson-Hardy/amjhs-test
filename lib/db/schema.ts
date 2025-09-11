@@ -230,6 +230,7 @@ export const articles = pgTable("articles", {
   crossrefMetadata: jsonb("crossref_metadata"),
   volume: text("volume"),
   issue: text("issue"),
+  articleNumber: integer("article_number"), // Sequential number within volume
   pages: text("pages"),
   publishedDate: timestamp("published_date"),
   submittedDate: timestamp("submitted_date").defaultNow(),

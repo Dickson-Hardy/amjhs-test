@@ -56,6 +56,62 @@ export default function ModernAdminDashboard() {
   })
   const [loading, setLoading] = useState(true)
 
+  const handleGenerateReport = () => {
+    router.push('/admin/reports')
+  }
+
+  const handleAddUser = () => {
+    router.push('/admin/users/add')
+  }
+
+  const handleViewSystemLogs = () => {
+    router.push('/admin/system-logs')
+  }
+
+  const handleDatabaseBackup = () => {
+    router.push('/admin/backup')
+  }
+
+  const handlePerformanceOptimization = () => {
+    router.push('/admin/performance')
+  }
+
+  const handleCOIOverview = () => {
+    router.push('/admin/coi')
+  }
+
+  const handleViewAllDeclarations = () => {
+    router.push('/admin/coi/declarations')
+  }
+
+  const handleViewAllAlerts = () => {
+    router.push('/admin/coi/alerts')
+  }
+
+  const handleConfigureLimits = () => {
+    router.push('/admin/time-limits')
+  }
+
+  const handleEditTimeLimits = () => {
+    router.push('/admin/time-limits/edit')
+  }
+
+  const handleConfigureReminders = () => {
+    router.push('/admin/time-limits/reminders')
+  }
+
+  const handleConfigureAutomation = () => {
+    router.push('/admin/workflow')
+  }
+
+  const handleConfigureTriggers = () => {
+    router.push('/admin/workflow/triggers')
+  }
+
+  const handleViewWorkflowAnalytics = () => {
+    router.push('/admin/workflow/analytics')
+  }
+
   useEffect(() => {
     async function fetchDashboardData() {
       if (!session?.user?.role || !["admin", "editor-in-chief"].includes(session.user.role)) return
@@ -114,11 +170,11 @@ export default function ModernAdminDashboard() {
               </p>
             </div>
             <div className="flex items-center space-x-3">
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleGenerateReport}>
                 <FileText className="h-4 w-4 mr-2" />
                 Generate Report
               </Button>
-              <Button>
+              <Button onClick={handleAddUser}>
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add User
               </Button>
@@ -567,15 +623,15 @@ export default function ModernAdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 gap-3">
-                    <Button variant="outline" className="justify-start">
+                    <Button variant="outline" className="justify-start" onClick={handleViewSystemLogs}>
                       <Activity className="h-4 w-4 mr-2" />
                       View System Logs
                     </Button>
-                    <Button variant="outline" className="justify-start">
+                    <Button variant="outline" className="justify-start" onClick={handleDatabaseBackup}>
                       <Globe className="h-4 w-4 mr-2" />
                       Database Backup
                     </Button>
-                    <Button variant="outline" className="justify-start">
+                    <Button variant="outline" className="justify-start" onClick={handlePerformanceOptimization}>
                       <Zap className="h-4 w-4 mr-2" />
                       Performance Optimization
                     </Button>
@@ -592,7 +648,7 @@ export default function ModernAdminDashboard() {
           <TabsContent value="coi" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-800">Conflict of Interest Management</h2>
-              <Button>
+              <Button onClick={handleCOIOverview}>
                 <Shield className="h-4 w-4 mr-2" />
                 COI Overview
               </Button>
@@ -620,7 +676,7 @@ export default function ModernAdminDashboard() {
                     <span className="text-sm text-gray-600">Pending Review</span>
                     <span className="font-semibold text-xl text-orange-600">8</span>
                   </div>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full" onClick={handleViewAllDeclarations}>
                     <Shield className="h-4 w-4 mr-2" />
                     View All Declarations
                   </Button>
@@ -652,7 +708,7 @@ export default function ModernAdminDashboard() {
                       </div>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full" onClick={handleViewAllAlerts}>
                     <AlertTriangle className="h-4 w-4 mr-2" />
                     View All Alerts
                   </Button>
@@ -664,7 +720,7 @@ export default function ModernAdminDashboard() {
           <TabsContent value="time-limits" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-800">Time Limit Configuration</h2>
-              <Button>
+              <Button onClick={handleConfigureLimits}>
                 <Clock className="h-4 w-4 mr-2" />
                 Configure Limits
               </Button>
@@ -694,7 +750,7 @@ export default function ModernAdminDashboard() {
                       <Badge variant="outline">21 days</Badge>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full" onClick={handleEditTimeLimits}>
                     <Settings className="h-4 w-4 mr-2" />
                     Edit Time Limits
                   </Button>
@@ -720,7 +776,7 @@ export default function ModernAdminDashboard() {
                       <Badge variant="outline">1, 2, 3 days</Badge>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full" onClick={handleConfigureReminders}>
                     <Bell className="h-4 w-4 mr-2" />
                     Configure Reminders
                   </Button>
@@ -732,7 +788,7 @@ export default function ModernAdminDashboard() {
           <TabsContent value="workflow" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-800">Workflow Automation</h2>
-              <Button>
+              <Button onClick={handleConfigureAutomation}>
                 <Zap className="h-4 w-4 mr-2" />
                 Configure Automation
               </Button>
@@ -762,7 +818,7 @@ export default function ModernAdminDashboard() {
                       <Badge variant="outline" className="bg-green-100 text-green-700">Active</Badge>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full" onClick={handleConfigureTriggers}>
                     <Settings className="h-4 w-4 mr-2" />
                     Configure Triggers
                   </Button>
@@ -792,7 +848,7 @@ export default function ModernAdminDashboard() {
                       <span className="font-semibold text-xl text-red-600">1.5%</span>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full" onClick={handleViewWorkflowAnalytics}>
                     <BarChart3 className="h-4 w-4 mr-2" />
                     View Analytics
                   </Button>

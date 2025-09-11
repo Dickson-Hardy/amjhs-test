@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { volumes, issues } from "@/lib/db/schema"
 import { desc, eq, and } from "drizzle-orm"
 import { logAdminAction } from "@/lib/admin-logger"
+import { logger } from "@/lib/logger"
 import { nanoid } from "nanoid"
 
 export async function GET(request: NextRequest) {
@@ -54,7 +55,9 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    logger.error("Error fetching volumes:", error)
+    logger.error("Error fetching volumes:", { 
+      error: error instanceof Error ? error.message : String(error) 
+    })
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -128,7 +131,9 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    logger.error("Error creating volume:", error)
+    logger.error("Error creating volume:", { 
+      error: error instanceof Error ? error.message : String(error) 
+    })
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

@@ -205,7 +205,7 @@ class ModernErrorHandler {
     }
     
     if (error && typeof error === 'object' && 'message' in error) {
-      return new Error((error as unknown).message)
+      return new Error(String(error))
     }
     
     return new Error('Unknown error occurred')
@@ -255,20 +255,30 @@ class ModernErrorHandler {
 
   private showErrorToast(
     error: Error,
-    title: string,
+    title: string = 'Error',
     customMessage?: string,
     errorId?: string
   ): void {
     const message = customMessage || this.getGenericErrorMessage(error.message)
     
     toast.error(message, {
-      title,
-      description: errorId ? `Error ID: ${errorId}` : undefined,
-      action: {
-        label: 'Report Issue',
-        onClick: () => this.openReportDialog(error, errorId)
-      }
+      duration: 5000
     })
+    
+    // If there's an error ID, show a separate action toast
+    if (errorId) {
+      setTimeout(() => {
+        toast({
+          title: "Need help?",
+          description: `Error ID: ${errorId}`,
+          action: {
+            label: 'Report Issue',
+            onClick: () => this.openReportDialog(error, errorId)
+          },
+          duration: 10000
+        })
+      }, 1000)
+    }
   }
 
   private getGenericErrorMessage(originalMessage: string): string {
@@ -318,7 +328,7 @@ class ModernErrorHandler {
       })
     } catch (reportError) {
       // Silent fail for error reporting
-      logger.error('Failed to report error:', reportError)
+      logger.error('Failed to report error:', { error: reportError })
     }
   }
 

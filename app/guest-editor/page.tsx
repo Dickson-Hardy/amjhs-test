@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -100,6 +101,7 @@ interface CallForPapers {
 
 export default function GuestEditorDashboard() {
   const { data: session } = useSession()
+  const router = useRouter()
   const [metrics, setMetrics] = useState<SpecialIssueMetrics>({
     totalSubmissions: 0,
     acceptedSubmissions: 0,
@@ -153,21 +155,34 @@ export default function GuestEditorDashboard() {
 
   const handleGuestDecision = async (submissionId: string, decision: string, comments: string) => {
     try {
-      logger.info(`Guest editor decision: ${decision} for submission ${submissionId}`)
-      logger.error(`Comments: ${comments}`)
+      console.log(`Guest editor decision: ${decision} for submission ${submissionId}`)
+      console.log(`Comments: ${comments}`)
       fetchDashboardData()
     } catch (error) {
-      logger.error('Error making guest editor decision:', error)
+      console.error('Error making guest editor decision:', error)
     }
   }
 
   const handleReviewerInvitation = async (reviewerId: string) => {
     try {
-      logger.error(`Inviting reviewer ${reviewerId} to special issue`)
+      console.log(`Inviting reviewer ${reviewerId} to special issue`)
       fetchDashboardData()
     } catch (error) {
-      logger.error('Error inviting reviewer:', error)
+      console.error('Error inviting reviewer:', error)
     }
+  }
+
+  const handleEditCall = () => {
+    router.push('/guest-editor/special-issues/edit')
+  }
+
+  const handlePromoteCall = () => {
+    router.push('/guest-editor/special-issues/promote')
+  }
+
+  const handleViewPublicPage = () => {
+    // Open the public special issue page in a new tab
+    window.open('/special-issues/current', '_blank')
   }
 
   const getStatusColor = (status: string) => {
@@ -613,15 +628,15 @@ export default function GuestEditorDashboard() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={handleEditCall}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Call
                   </Button>
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={handlePromoteCall}>
                     <Send className="h-4 w-4 mr-2" />
                     Promote Call
                   </Button>
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={handleViewPublicPage}>
                     <Globe className="h-4 w-4 mr-2" />
                     View Public Page
                   </Button>

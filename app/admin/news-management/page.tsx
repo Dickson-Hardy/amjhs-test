@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
+import { logger } from "@/lib/logger"
+import { AppError } from "@/lib/error-utils"
 import {
   Plus,
   Edit,
@@ -72,7 +74,7 @@ export default function NewsManagementPage() {
       const data = await response.json()
       
       if (data.success) {
-        setNewsItems(data.news)
+        setNewsItems(Array.isArray(data.news) ? data.news : [])
       } else {
         toast({
           title: "Error",
@@ -81,7 +83,7 @@ export default function NewsManagementPage() {
         })
       }
     } catch (error) {
-      logger.error("Error fetching news:", error)
+      logger.error("Error fetching news", { error })
       toast({
         title: "Error",
         description: "Failed to fetch news items",
@@ -232,7 +234,7 @@ export default function NewsManagementPage() {
       category: newsItem.category,
       authorName: newsItem.authorName,
       isPublished: newsItem.isPublished,
-      tags: newsItem.tags.join(', ')
+      tags: (newsItem.tags || []).join(', ')
     })
     setIsEditModalOpen(true)
   }
@@ -405,7 +407,7 @@ export default function NewsManagementPage() {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
               <p className="text-gray-600">Loading news items...</p>
             </div>
-          ) : newsItems.length === 0 ? (
+          ) : !Array.isArray(newsItems) || newsItems.length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">
                 <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -452,10 +454,10 @@ export default function NewsManagementPage() {
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      {item.tags.length > 0 && (
+                      {(item.tags || []).length > 0 && (
                         <div className="flex items-center gap-1">
                           <span className="text-sm text-gray-500">Tags:</span>
-                          {item.tags.map((tag, index) => (
+                          {(item.tags || []).map((tag, index) => (
                             <Badge key={index} variant="secondary" className="text-xs">
                               {tag}
                             </Badge>

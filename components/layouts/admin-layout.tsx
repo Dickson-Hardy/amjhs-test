@@ -53,6 +53,14 @@ const adminSidebarItems = [
     shortLabel: 'Articles' 
   },
   { 
+    id: 'articles', 
+    href: '/admin/articles', 
+    icon: BookOpen, 
+    label: 'Articles Management', 
+    description: 'Create & manage articles', 
+    shortLabel: 'Manage' 
+  },
+  { 
     id: 'applications', 
     href: '/admin/applications', 
     icon: UserCheck, 
@@ -99,6 +107,14 @@ const adminSidebarItems = [
     label: 'Archive Management', 
     description: 'Manage publication archive', 
     shortLabel: 'Archive' 
+  },
+  { 
+    id: 'volumes', 
+    href: '/admin/volume-management', 
+    icon: BookOpen, 
+    label: 'Volume Management', 
+    description: 'Direct volume publication', 
+    shortLabel: 'Volumes' 
   },
   { 
     id: 'seo', 

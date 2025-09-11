@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { adminLogs } from "@/lib/db/schema"
 import { nanoid } from "nanoid"
+import { logger } from "@/lib/logger"
 
 interface LogAdminActionParams {
   adminId: string
@@ -37,7 +38,18 @@ export async function logAdminAction({
       createdAt: new Date()
     })
   } catch (error) {
-    logger.error('Failed to log admin action:', error)
+    logger.error('Failed to log admin action:', { 
+      error: error instanceof Error ? {
+        message: error.message,
+        stack: error.stack
+      } : error,
+      context: {
+        adminId,
+        action,
+        resourceType,
+        resourceId
+      }
+    })
     // Don't throw - logging failures shouldn't break the main operation
   }
 }

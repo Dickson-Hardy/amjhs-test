@@ -25,108 +25,53 @@ interface Logger {
   security: (message: string, context?: LogContext) => void
 }
 
-let logger: Logger
+// Edge Runtime compatible logger using console methods
+function formatLogMessage(level: string, message: string, context?: LogContext): string {
+  const timestamp = new Date().toISOString()
+  const contextStr = context && Object.keys(context).length ? ` | ${JSON.stringify(context)}` : ''
+  return `${timestamp} [${level.toUpperCase()}]: ${message}${contextStr}`
+}
 
-// Only initialize winston on the server side
-if (typeof window === 'undefined') {
-  try {
-    const winston = require('winston')
-    
-    const winstonLogger = winston.createLogger({
-      level: process.env.NODE_ENV === "production" ? "info" : "debug",
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.errors({ stack: true }),
-        winston.format.printf(({ level, message, timestamp, ...meta }: unknown) => {
-          const contextStr = Object.keys(meta).length ? ` | ${JSON.stringify(meta)}` : ''
-          return `${timestamp} [${level.toUpperCase()}]: ${message}${contextStr}`
-        })
-      ),
-      defaultMeta: { 
-        service: "amhsj",
-        environment: process.env.NODE_ENV,
-        version: process.env.npm_package_version || '1.0.0'
-      },
-      transports: [
-        new winston.transports.File({ filename: "logs/error.log", level: "error" }),
-        new winston.transports.File({ filename: "logs/combined.log" }),
-        new winston.transports.File({ filename: "logs/audit.log", level: "info" }),
-        new winston.transports.File({ filename: "logs/auth.log", level: "info" }),
-        new winston.transports.File({ filename: "logs/security.log", level: "warn" }),
-      ],
-    })
+function shouldLog(level: 'debug' | 'info' | 'warn' | 'error'): boolean {
+  const logLevel = process.env.NODE_ENV === "production" ? "info" : "debug"
+  const levels = { debug: 0, info: 1, warn: 2, error: 3 }
+  return levels[level] >= levels[logLevel as keyof typeof levels]
+}
 
-    if (process.env.NODE_ENV !== "production") {
-      winstonLogger.add(
-        new winston.transports.Console({
-          format: winston.format.combine(
-            winston.format.colorize(),
-            winston.format.simple()
-          ),
-        }),
-      )
+const logger: Logger = {
+  error: (message: string, context?: LogContext) => {
+    if (shouldLog('error')) {
+      console.error(formatLogMessage('error', message, context))
     }
-
-    logger = {
-      error: (message: string, context?: LogContext) => {
-        winstonLogger.error(message, context)
-      },
-      warn: (message: string, context?: LogContext) => {
-        winstonLogger.warn(message, context)
-      },
-      info: (message: string, context?: LogContext) => {
-        winstonLogger.info(message, context)
-      },
-      debug: (message: string, context?: LogContext) => {
-        winstonLogger.debug(message, context)
-      },
-      auth: (message: string, userId?: string, action?: string) => {
-        winstonLogger.info(`[AUTH] ${message}`, { userId, action, category: 'authentication' })
-      },
-      api: (message: string, context?: LogContext) => {
-        winstonLogger.info(`[API] ${message}`, { ...context, category: 'api' })
-      },
-      security: (message: string, context?: LogContext) => {
-        winstonLogger.warn(`[SECURITY] ${message}`, { ...context, category: 'security' })
-      }
+  },
+  warn: (message: string, context?: LogContext) => {
+    if (shouldLog('warn')) {
+      console.warn(formatLogMessage('warn', message, context))
     }
-  } catch (error) {
-    // Fallback if winston is not available
-    logger = {
-      error: (message: string, context?: LogContext) => console.error(`[ERROR] ${message}`, context),
-      warn: (message: string, context?: LogContext) => console.warn(`[WARN] ${message}`, context),
-      info: (message: string, context?: LogContext) => console.log(`[INFO] ${message}`, context),
-      debug: (message: string, context?: LogContext) => console.log(`[DEBUG] ${message}`, context),
-      auth: (message: string, userId?: string, action?: string) => console.log(`[AUTH] ${message}`, { userId, action }),
-      api: (message: string, context?: LogContext) => console.log(`[API] ${message}`, context),
-      security: (message: string, context?: LogContext) => console.warn(`[SECURITY] ${message}`, context)
+  },
+  info: (message: string, context?: LogContext) => {
+    if (shouldLog('info')) {
+      console.log(formatLogMessage('info', message, context))
     }
-  }
-} else {
-  // Client-side logger - only log in development
-  const isDev = process.env.NODE_ENV === 'development'
-  
-  logger = {
-    error: (message: string, context?: LogContext) => {
-      if (isDev) console.error(`[ERROR] ${message}`, context)
-    },
-    warn: (message: string, context?: LogContext) => {
-      if (isDev) console.warn(`[WARN] ${message}`, context)
-    },
-    info: (message: string, context?: LogContext) => {
-      if (isDev) console.log(`[INFO] ${message}`, context)
-    },
-    debug: (message: string, context?: LogContext) => {
-      if (isDev) console.log(`[DEBUG] ${message}`, context)
-    },
-    auth: (message: string, userId?: string, action?: string) => {
-      if (isDev) console.log(`[AUTH] ${message}`, { userId, action })
-    },
-    api: (message: string, context?: LogContext) => {
-      if (isDev) console.log(`[API] ${message}`, context)
-    },
-    security: (message: string, context?: LogContext) => {
-      if (isDev) console.warn(`[SECURITY] ${message}`, context)
+  },
+  debug: (message: string, context?: LogContext) => {
+    if (shouldLog('debug')) {
+      console.log(formatLogMessage('debug', message, context))
+    }
+  },
+  auth: (message: string, userId?: string, action?: string) => {
+    if (shouldLog('info')) {
+      console.log(formatLogMessage('info', `[AUTH] ${message}`, { userId, action, category: 'authentication' }))
+    }
+  },
+  api: (message: string, context?: LogContext) => {
+    if (shouldLog('info')) {
+      console.log(formatLogMessage('info', `[API] ${message}`, { ...context, category: 'api' }))
+    }
+  },
+  security: (message: string, context?: LogContext) => {
+    if (shouldLog('warn')) {
+      console.warn(formatLogMessage('warn', `[SECURITY] ${message}`, { ...context, category: 'security' }))
     }
   }
 }

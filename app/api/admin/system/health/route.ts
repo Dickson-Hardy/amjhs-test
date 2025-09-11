@@ -194,7 +194,7 @@ export async function GET(request: NextRequest) {
       // - pm2 monitoring for Node.js applications
 
     } catch (error) {
-      logger.error('System monitoring error:', error)
+      console.error('System monitoring error:', error)
       // Use reasonable defaults if monitoring fails
     }
 
@@ -233,7 +233,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    logger.error("Error checking system health:", error)
+    console.error("Error checking system health:", error)
     return NextResponse.json({
       overall: {
         status: 'critical',

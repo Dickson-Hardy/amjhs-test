@@ -223,7 +223,7 @@ export default function ArchivePage() {
               <h3 className="font-semibold mb-2">Browse by Volume</h3>
               <p className="text-gray-600 text-sm mb-4">Explore articles organized by journal volumes</p>
               <Button asChild>
-                <Link href="/archive/enhanced">Enhanced Browse</Link>
+                <Link href="/archive/volumes">Browse Volumes</Link>
               </Button>
             </CardContent>
           </Card>

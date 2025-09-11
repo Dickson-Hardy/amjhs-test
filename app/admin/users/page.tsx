@@ -82,7 +82,7 @@ export default function AdminUsersPage() {
         setUsers(data.users)
         setStats(data.stats)
       } else {
-        logger.error('Failed to fetch users:', data.error)
+        console.error('Failed to fetch users:', data.error)
         // Fallback to empty state
         setUsers([])
         setStats({
@@ -96,7 +96,7 @@ export default function AdminUsersPage() {
         })
       }
     } catch (error) {
-      logger.error('Error fetching users data:', error)
+      console.error('Error fetching users data:', error)
       // Fallback to empty state
       setUsers([])
       setStats({
@@ -137,7 +137,7 @@ export default function AdminUsersPage() {
         })
       }
     } catch (error) {
-      logger.error('Error updating user role:', error)
+      console.error('Error updating user role:', error)
       toast({
         title: "Error",
         description: "Failed to update user role",
@@ -170,7 +170,7 @@ export default function AdminUsersPage() {
         })
       }
     } catch (error) {
-      logger.error('Error updating user status:', error)
+      console.error('Error updating user status:', error)
       toast({
         title: "Error",
         description: "Failed to update user status",
@@ -205,7 +205,7 @@ export default function AdminUsersPage() {
         })
       }
     } catch (error) {
-      logger.error('Error deleting user:', error)
+      console.error('Error deleting user:', error)
       toast({
         title: "Error",
         description: "Failed to delete user",

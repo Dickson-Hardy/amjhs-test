@@ -41,22 +41,7 @@ async function getNews(request: NextRequest) {
 
   try {
     // Fetch all news items (including unpublished)
-    const newsItems = await db.select({
-      id: news.id,
-      title: news.title,
-      content: news.content,
-      excerpt: news.excerpt,
-      type: news.type,
-      category: news.category,
-      authorName: news.authorName,
-      publishedAt: news.publishedAt,
-      isPublished: news.isPublished,
-      slug: news.slug,
-      tags: news.tags,
-      createdAt: news.createdAt,
-      updatedAt: news.updatedAt
-    }).from(news)
-    .orderBy(desc(news.createdAt))
+    const newsItems = await db.select().from(news).orderBy(desc(news.createdAt))
 
     logger.api("Admin news fetch completed", {
       userId: session.user.id,
