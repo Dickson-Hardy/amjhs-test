@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import { communication_templates, users, submissions, articles } from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
+import { eq, and, or } from "drizzle-orm"
 import { logError } from "@/lib/logger"
 
 export interface EditorialAssistantEmailData {
@@ -57,26 +57,59 @@ export class EditorialAssistantEmailService {
     editorialAssistantEmail: string
   ): Promise<boolean> {
     try {
-      // Get submission and article details
-      const submission = await db.query.submissions.findFirst({
-        where: eq(submissions.id, submissionId),
-        with: {
-          article: {
-            with: {
-              author: true
-            }
-          }
-        }
-      })
+      // Get submission details
+      const submissionResult = await db
+        .select({
+          id: submissions.id,
+          createdAt: submissions.createdAt,
+          articleId: submissions.articleId
+        })
+        .from(submissions)
+        .where(eq(submissions.id, submissionId))
+        .limit(1)
+      
+      const submission = submissionResult[0]
+      if (!submission) {
+        throw new Error(`Submission not found: ${submissionId}`)
+      }
 
-      if (!submission || !submission.article) {
-        throw new Error(`Submission or article not found: ${submissionId}`)
+      // Get article details
+      let article = null
+      let author = null
+      if (submission.articleId) {
+        const articleResult = await db
+          .select({
+            title: articles.title,
+            category: articles.category,
+            authorId: articles.authorId
+          })
+          .from(articles)
+          .where(eq(articles.id, submission.articleId))
+          .limit(1)
+        article = articleResult[0] || null
+        
+        if (article?.authorId) {
+          const authorResult = await db
+            .select({ name: users.name })
+            .from(users)
+            .where(eq(users.id, article.authorId))
+            .limit(1)
+          author = authorResult[0] || null
+        }
+      }
+
+      if (!article) {
+        throw new Error(`Article not found for submission: ${submissionId}`)
       }
 
       // Get email template
-      const template = await db.query.communication_templates.findFirst({
-        where: eq(communication_templates.template_name, 'New Submission Notification - Editorial Assistant')
-      })
+      const templateResult = await db
+        .select()
+        .from(communication_templates)
+        .where(eq(communication_templates.template_name, 'New Submission Notification - Editorial Assistant'))
+        .limit(1)
+      
+      const template = templateResult[0]
 
       if (!template) {
         throw new Error('Email template not found')
@@ -84,11 +117,11 @@ export class EditorialAssistantEmailService {
 
       // Prepare email data
       const emailData: EditorialAssistantEmailData = {
-        manuscript_title: submission.article.title || 'Untitled',
+        manuscript_title: article.title || 'Untitled',
         manuscript_id: submission.id,
-        category: submission.article.category || 'Uncategorized',
-        article_type: submission.article.articleType || 'research',
-        author_name: submission.article.author?.name || 'Unknown Author',
+        category: article.category || 'Uncategorized',
+        article_type: 'research', // Default value since articleType doesn't exist in schema
+        author_name: author?.name || 'Unknown Author',
         submission_date: submission.createdAt?.toLocaleDateString() || new Date().toLocaleDateString(),
         priority_level: this.calculatePriorityLevel(submission.createdAt),
         login_url: `${this.baseUrl}/editorial-assistant/login?redirect=/editorial-assistant&submission=${submissionId}`,
@@ -132,43 +165,69 @@ export class EditorialAssistantEmailService {
     }
   ): Promise<boolean> {
     try {
-      // Get submission and article details
-      const submission = await db.query.submissions.findFirst({
-        where: eq(submissions.id, submissionId),
-        with: {
-          article: {
-            with: {
-              author: true
-            }
-          }
-        }
-      })
+      // Get submission details
+      const submissionResult = await db
+        .select({
+          id: submissions.id,
+          createdAt: submissions.createdAt,
+          articleId: submissions.articleId
+        })
+        .from(submissions)
+        .where(eq(submissions.id, submissionId))
+        .limit(1)
+      
+      const submission = submissionResult[0]
+      if (!submission) {
+        throw new Error(`Submission not found: ${submissionId}`)
+      }
 
-      if (!submission || !submission.article) {
-        throw new Error(`Submission or article not found: ${submissionId}`)
+      // Get article details
+      let article = null
+      if (submission.articleId) {
+        const articleResult = await db
+          .select({
+            title: articles.title,
+            category: articles.category
+          })
+          .from(articles)
+          .where(eq(articles.id, submission.articleId))
+          .limit(1)
+        article = articleResult[0] || null
+      }
+
+      if (!article) {
+        throw new Error(`Article not found for submission: ${submissionId}`)
       }
 
       // Get email template
-      const template = await db.query.communication_templates.findFirst({
-        where: eq(communication_templates.template_name, 'Screening Completion Notification')
-      })
+      const templateResult = await db
+        .select()
+        .from(communication_templates)
+        .where(eq(communication_templates.template_name, 'Screening Completion Notification'))
+        .limit(1)
+      
+      const template = templateResult[0]
 
       if (!template) {
         throw new Error('Email template not found')
       }
 
       // Get associate editor name
-      const associateEditor = await db.query.users.findFirst({
-        where: eq(users.email, associateEditorEmail)
-      })
+      const associateEditorResult = await db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.email, associateEditorEmail))
+        .limit(1)
+      
+      const associateEditor = associateEditorResult[0]
 
       // Prepare email data
       const emailData: ScreeningCompletionEmailData = {
         associate_editor_name: associateEditor?.name || 'Associate Editor',
-        manuscript_title: submission.article.title || 'Untitled',
+        manuscript_title: article.title || 'Untitled',
         manuscript_id: submission.id,
-        category: submission.article.category || 'Uncategorized',
-        article_type: submission.article.articleType || 'research',
+        category: article.category || 'Uncategorized',
+        article_type: 'research', // Default value since articleType doesn't exist in schema
         priority: this.calculatePriorityLevel(submission.createdAt),
         screening_score: screeningData.screeningScore,
         screening_notes: screeningData.screeningNotes,
@@ -363,20 +422,44 @@ export class EditorialAssistantEmailService {
     submittedAt: Date
   }>> {
     try {
-      const submissions = await db.query.submissions.findMany({
-        where: eq(submissions.status, 'submitted'),
-        with: {
-          article: true
-        },
-        orderBy: (submissions, { asc }) => [asc(submissions.createdAt)]
-      })
+      const submissionResults = await db
+        .select({
+          id: submissions.id,
+          createdAt: submissions.createdAt,
+          articleId: submissions.articleId,
+          status: submissions.status
+        })
+        .from(submissions)
+        .where(or(
+          eq(submissions.status, 'submitted'),
+          eq(submissions.status, 'editorial_assistant_review')
+        ))
+        .orderBy(submissions.createdAt)
 
-      return submissions.map(submission => ({
-        id: submission.id,
-        title: submission.article?.title || 'Untitled',
-        category: submission.article?.category || 'Uncategorized',
-        submittedAt: submission.createdAt || new Date()
-      }))
+      const results = []
+      for (const submission of submissionResults) {
+        let article = null
+        if (submission.articleId) {
+          const articleResult = await db
+            .select({
+              title: articles.title,
+              category: articles.category
+            })
+            .from(articles)
+            .where(eq(articles.id, submission.articleId))
+            .limit(1)
+          article = articleResult[0] || null
+        }
+
+        results.push({
+          id: submission.id,
+          title: article?.title || 'Untitled',
+          category: article?.category || 'Uncategorized',
+          submittedAt: submission.createdAt || new Date()
+        })
+      }
+
+      return results
     } catch (error) {
       logError(error as Error, { 
         service: 'EditorialAssistantEmailService', 

@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         // Get submissions that need initial screening
         whereCondition = or(
           eq(submissions.status, "submitted"),
+          eq(submissions.status, "editorial_assistant_review"),
           eq(submissions.status, "under_review")
         )
         break
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build query with joins
-    let query = db
+    const baseQuery = db
       .select({
         id: submissions.id,
         status: submissions.status,
@@ -71,25 +72,18 @@ export async function GET(request: NextRequest) {
       .leftJoin(articles, eq(submissions.articleId, articles.id))
       .leftJoin(users, eq(submissions.authorId, users.id))
 
-    if (whereCondition) {
-      query = query.where(whereCondition)
-    }
-
-    const results = await query
-      .limit(limit)
-      .offset(offset)
-      .orderBy(submissions.createdAt)
+    const results = whereCondition
+      ? await baseQuery.where(whereCondition).limit(limit).offset(offset).orderBy(submissions.createdAt)
+      : await baseQuery.limit(limit).offset(offset).orderBy(submissions.createdAt)
 
     // Get total count for pagination
-    let totalQuery = db
+    const baseTotalQuery = db
       .select({ count: sql<number>`count(*)` })
       .from(submissions)
 
-    if (whereCondition) {
-      totalQuery = totalQuery.where(whereCondition)
-    }
-
-    const totalResults = await totalQuery
+    const totalResults = whereCondition
+      ? await baseTotalQuery.where(whereCondition)
+      : await baseTotalQuery
     const total = Number(totalResults[0]?.count || 0)
 
     // Format the results

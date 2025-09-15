@@ -1,6 +1,13 @@
 // Service Worker for AMHSJ - International Journal of Advanced Medical and Health Sciences
 // Enhanced PWA service worker with offline functionality and push notifications
 
+// Simple logger for service worker
+const logger = {
+  info: (...args) => console.log('[SW]', ...args),
+  error: (...args) => console.error('[SW]', ...args),
+  warn: (...args) => console.warn('[SW]', ...args)
+};
+
 const CACHE_NAME = 'amhsj-v1.2.0';
 const STATIC_CACHE = 'amhsj-static-v1.2.0';
 const DYNAMIC_CACHE = 'amhsj-dynamic-v1.2.0';
