@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { messages } from "@/lib/db/schema"
-import { eq, and, count, sql } from "drizzle-orm"
+import { messages, conversations } from "@/lib/db/schema"
+import { eq, and, count, sql, inArray, or } from "drizzle-orm"
 import { logError } from "@/lib/logger"
 
 export async function GET() {
@@ -14,19 +14,48 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get total message count
+    // Find conversations where the user is a participant
+    const userConversations = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(or(
+        eq(conversations.participant1Id, session.user.id),
+        eq(conversations.participant2Id, session.user.id)
+      ))
+
+    const conversationIds = userConversations.map(c => c.id)
+
+    if (conversationIds.length === 0) {
+      // User has no conversations yet
+      return NextResponse.json({
+        success: true,
+        stats: {
+          total: 0,
+          unread: 0,
+          editorial: 0,
+          review: 0,
+          system: 0
+        }
+      })
+    }
+
+    // Get total message count for user's conversations (excluding messages sent by the user)
     const totalResult = await db
       .select({ count: count() })
       .from(messages)
-      .where(eq(messages.recipientId, session.user.id))
+      .where(and(
+        inArray(messages.conversationId, conversationIds),
+        sql`${messages.senderId} != ${session.user.id}` // Exclude messages sent by the user
+      ))
 
     // Get unread message count
     const unreadResult = await db
       .select({ count: count() })
       .from(messages)
       .where(and(
-        eq(messages.recipientId, session.user.id),
-        eq(messages.status, 'unread')
+        inArray(messages.conversationId, conversationIds),
+        sql`${messages.senderId} != ${session.user.id}`,
+        eq(messages.isRead, false)
       ))
 
     // Get messages by type
@@ -34,7 +63,8 @@ export async function GET() {
       .select({ count: count() })
       .from(messages)
       .where(and(
-        eq(messages.recipientId, session.user.id),
+        inArray(messages.conversationId, conversationIds),
+        sql`${messages.senderId} != ${session.user.id}`,
         eq(messages.messageType, 'editorial')
       ))
 
@@ -42,7 +72,8 @@ export async function GET() {
       .select({ count: count() })
       .from(messages)
       .where(and(
-        eq(messages.recipientId, session.user.id),
+        inArray(messages.conversationId, conversationIds),
+        sql`${messages.senderId} != ${session.user.id}`,
         eq(messages.messageType, 'review')
       ))
 
@@ -50,7 +81,8 @@ export async function GET() {
       .select({ count: count() })
       .from(messages)
       .where(and(
-        eq(messages.recipientId, session.user.id),
+        inArray(messages.conversationId, conversationIds),
+        sql`${messages.senderId} != ${session.user.id}`,
         eq(messages.messageType, 'system')
       ))
 

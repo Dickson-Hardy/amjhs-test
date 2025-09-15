@@ -304,8 +304,8 @@ export const conversations = pgTable("conversations", {
   type: text("type").notNull(), // review, submission, editorial, system
   relatedId: uuid("related_id"), // article_id, review_id, etc.
   relatedTitle: text("related_title"),
-  participant1Id: uuid("participant1_id").references(() => users.id),
-  participant2Id: uuid("participant2_id").references(() => users.id),
+  participant1Id: uuid("participant1Id").references(() => users.id),
+  participant2Id: uuid("participant2Id").references(() => users.id),
   participants: jsonb("participants").$type<{ id: string; name: string; role: string }[]>(),
   lastMessageId: uuid("last_message_id"),
   lastActivity: timestamp("last_activity").defaultNow(),
