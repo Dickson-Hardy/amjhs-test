@@ -60,17 +60,9 @@ export default function EditorialAssistantDashboard() {
   const [priorityFilter, setPriorityFilter] = useState("all")
 
   useEffect(() => {
-    if (session?.user?.role !== "editorial-assistant" && 
-        session?.user?.role !== "admin" && 
-        session?.user?.role !== "managing-editor" && 
-        session?.user?.role !== "editor-in-chief") {
-      router.push("/dashboard")
-      return
-    }
-
     fetchManuscripts()
     fetchStats()
-  }, [session, router])
+  }, [])
 
   const fetchManuscripts = async () => {
     try {

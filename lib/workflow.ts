@@ -764,7 +764,7 @@ export class ReviewerAssignmentService {
           .limit(1)
           .then(results => results[0] || null)
           
-          if (profile && profile.currentReviewLoad >= profile.maxReviewsPerMonth) {
+          if (profile && (profile.currentReviewLoad ?? 0) >= (profile.maxReviewsPerMonth ?? 3)) {
             errors.push(`Reviewer ${reviewer.name} has reached maximum workload`)
             continue
           }
@@ -832,14 +832,16 @@ export class ReviewerAssignmentService {
           })
           .where(eq(articles.id, articleId))
 
-        // Update submission status
-        await db
-          .update(submissions)
-          .set({
-            status: "under_review",
-            updatedAt: new Date()
-          })
+        // Update submission status using shared updater to keep articles and submissions in sync
+        const submissionService = new ArticleSubmissionService()
+        // Find submission by articleId to get submissionId
+        const submissionQuery = await db.select({ id: submissions.id })
+          .from(submissions)
           .where(eq(submissions.articleId, articleId))
+          .limit(1)
+        if (submissionQuery.length > 0) {
+          await submissionService.updateSubmissionStatus(submissionQuery[0].id, "under_review", editorId, "Reviewers assigned")
+        }
       }
 
       return {
@@ -899,14 +901,14 @@ export class ArticleSubmissionService {
       }
 
       // Validate that at least one corresponding author is designated
-      const correspondingAuthors = articleData.authors.filter(author => (author as unknown).isCorrespondingAuthor)
+      const correspondingAuthors = articleData.authors.filter(author => (author as any).isCorrespondingAuthor)
       if (correspondingAuthors.length === 0) {
         return { success: false, message: "At least one corresponding author must be designated" }
       }
 
       // Validate all authors have required fields
       for (const author of articleData.authors) {
-        const a = author as unknown
+        const a = author as any
         if (!author.firstName || !author.lastName || !author.email || !author.affiliation) {
           return { success: false, message: "All authors must have complete information (name, email, affiliation)" }
         }
@@ -937,7 +939,7 @@ export class ArticleSubmissionService {
         id: articleId,
         title: articleData.title.trim(),
         abstract: articleData.abstract.trim(),
-        content: (articleData as unknown).content?.trim() || "",
+        content: (articleData as any).content?.trim() || "",
         keywords: articleData.keywords,
         category: articleData.category,
         status: "submitted",
@@ -967,9 +969,9 @@ export class ArticleSubmissionService {
       })
 
       // Save recommended reviewers if provided
-      const recReviewers = (articleData as unknown).recommendedReviewers
+      const recReviewers = (articleData as any).recommendedReviewers
       if (recReviewers && recReviewers.length > 0) {
-        const reviewersToInsert = recReviewers.map((reviewer: unknown) => ({
+        const reviewersToInsert = recReviewers.map((reviewer: any) => ({
           id: uuidv4(),
           articleId,
           name: reviewer.name.trim(),
@@ -1011,7 +1013,7 @@ export class ArticleSubmissionService {
           suitableEditor.id,
           "New Submission Assigned",
           `A new article "${articleData.title}" has been assigned to you for editorial review.`,
-          submissionId
+          { submissionId }
         )
 
         // Create notification
@@ -1029,7 +1031,7 @@ export class ArticleSubmissionService {
         authorId,
         "Submission Received",
         `Your article "${articleData.title}" has been successfully submitted and is now under review.`,
-        submissionId
+        { submissionId }
       )
 
       // Create notification for author
@@ -1116,7 +1118,7 @@ export class ArticleSubmissionService {
       return suitableEditors[0] || null
 
     } catch (error) {
-      logger.error("Error finding suitable editor:", { operation: 'findSuitableEditor', articleId, error })
+      logger.error("Error finding suitable editor", { operation: 'findSuitableEditor', category, error })
       return null
     }
   }
@@ -1261,8 +1263,7 @@ export class ReviewManagementService {
         confidentialComments: reviews.confidentialComments,
         rating: reviews.rating,
         submittedAt: reviews.submittedAt,
-        createdAt: reviews.createdAt,
-        updatedAt: reviews.updatedAt
+        createdAt: reviews.createdAt
       })
       .from(reviews)
       .where(and(
@@ -1333,38 +1334,61 @@ export class ReviewManagementService {
           }
 
           // Notify editor and author
-          const article = review.article as { editorId?: string; authorId?: string; title?: string; id?: string } | undefined
-          if (article && article.editorId) {
-            await createSystemNotification(
-              article.editorId,
-              "REVIEWS_COMPLETE",
-              "All Reviews Completed",
-              `All reviews completed for: "${article.title ?? ''}"`,
-              article.id ?? ''
-            )
-          }
+          if (review.articleId) {
+            const article = await db.select({
+              id: articles.id,
+              editorId: articles.editorId,
+              authorId: articles.authorId,
+              title: articles.title
+            })
+            .from(articles)
+            .where(eq(articles.id, review.articleId))
+            .limit(1)
+            .then(results => results[0] || null)
 
-          if (article && article.authorId) {
-            await createSystemNotification(
-              article.authorId,
-              "REVIEWS_COMPLETE",
-              "Reviews Completed",
-              `Reviews have been completed for your submission: "${article.title ?? ''}"`,
-              article.id ?? ''
-            )
+            if (article && article.editorId) {
+              await createSystemNotification(
+                article.editorId,
+                "REVIEWS_COMPLETE",
+                "All Reviews Completed",
+                `All reviews completed for: "${article.title ?? ''}"`,
+                article.id ?? ''
+              )
+            }
+
+            if (article && article.authorId) {
+              await createSystemNotification(
+                article.authorId,
+                "REVIEWS_COMPLETE",
+                "Reviews Completed",
+                `Reviews have been completed for your submission: "${article.title ?? ''}"`,
+                article.id ?? ''
+              )
+            }
           }
         }
 
       // Notify editor of review completion
-      const editorArticle = review.article as { editorId?: string; title?: string; id?: string } | undefined
-      if (editorArticle && editorArticle.editorId) {
-        await createSystemNotification(
-          editorArticle.editorId,
-          "REVIEW_SUBMITTED",
-          "Review Submitted",
-          `A review has been submitted for: "${editorArticle.title ?? ''}"`,
-          editorArticle.id ?? ''
-        )
+      if (review.articleId) {
+        const editorArticle = await db.select({
+          id: articles.id,
+          editorId: articles.editorId,
+          title: articles.title
+        })
+        .from(articles)
+        .where(eq(articles.id, review.articleId))
+        .limit(1)
+        .then(results => results[0] || null)
+
+        if (editorArticle && editorArticle.editorId) {
+          await createSystemNotification(
+            editorArticle.editorId,
+            "REVIEW_SUBMITTED",
+            "Review Submitted",
+            `A review has been submitted for: "${editorArticle.title ?? ''}"`,
+            editorArticle.id ?? ''
+          )
+        }
       }
 
       return { success: true, message: "Review submitted successfully" }
@@ -1639,14 +1663,15 @@ export class EditorialAssistantService {
             .then(results => results[0] || null)
 
             if (author?.email) {
-              await sendEmail(
-                author.email,
-                "Manuscript Screening Completed - Under Review",
-                `Dear ${author.name},\n\nYour manuscript "${article.title}" has successfully passed our initial screening process and is now under peer review.\n\nWe will notify you of the next steps as the review process continues.\n\nBest regards,\nEditorial Team`
-              )
+              await sendEmail({
+                to: author.email,
+                subject: "Manuscript Screening Completed - Under Review",
+                html: `Dear ${author.name},<br><br>Your manuscript "${article.title}" has successfully passed our initial screening process and is now under peer review.<br><br>We will notify you of the next steps as the review process continues.<br><br>Best regards,<br>Editorial Team`,
+                text: `Dear ${author.name},\n\nYour manuscript "${article.title}" has successfully passed our initial screening process and is now under peer review.\n\nWe will notify you of the next steps as the review process continues.\n\nBest regards,\nEditorial Team`
+              })
             }
           } catch (emailError) {
-            logger.error("Failed to send screening notification email:", emailError)
+            logger.error("Failed to send screening notification email", { error: emailError })
           }
         }
 
@@ -1720,14 +1745,15 @@ export class EditorialAssistantService {
             .then(results => results[0] || null)
 
             if (author?.email) {
-              await sendEmail(
-                author.email,
-                "Manuscript Revision Required",
-                `Dear ${author.name},\n\nYour manuscript "${article.title}" has been reviewed and requires revisions before it can proceed to peer review.\n\nRevision details:\n${this.generateAuthorFeedback(screeningData)}\n\nPlease address these issues and resubmit your manuscript.\n\nBest regards,\nEditorial Team`
-              )
+              await sendEmail({
+                to: author.email,
+                subject: "Manuscript Revision Required",
+                html: `Dear ${author.name},<br><br>Your manuscript "${article.title}" has been reviewed and requires revisions before it can proceed to peer review.<br><br>Revision details:<br>${this.generateAuthorFeedback(screeningData)}<br><br>Please address these issues and resubmit your manuscript.<br><br>Best regards,<br>Editorial Team`,
+                text: `Dear ${author.name},\n\nYour manuscript "${article.title}" has been reviewed and requires revisions before it can proceed to peer review.\n\nRevision details:\n${this.generateAuthorFeedback(screeningData)}\n\nPlease address these issues and resubmit your manuscript.\n\nBest regards,\nEditorial Team`
+              })
             }
           } catch (emailError) {
-            logger.error("Failed to send revision notification email:", emailError)
+            logger.error("Failed to send revision notification email", { error: emailError })
           }
         }
 
@@ -1846,7 +1872,7 @@ export class EditorialAssistantService {
       return associateEditors[randomIndex]
 
     } catch (error) {
-      logger.error("Error finding available associate editor:", error)
+      logger.error("Error finding available associate editor", { error })
       return null
     }
   }
@@ -2014,20 +2040,10 @@ export class EditorialAssistantService {
     userId: string,
     notes?: string
   ): Promise<void> {
-    await db
-      .update(submissions)
-      .set({
-        status: newStatus,
-        statusHistory: sql`${submissions.statusHistory} || ${JSON.stringify([{
-          status: newStatus,
-          timestamp: new Date(),
-          userId: userId,
-          notes: notes,
-          systemGenerated: false
-        }])}::jsonb`,
-        updatedAt: new Date()
-      })
-      .where(eq(submissions.id, submissionId))
+    // Delegate to the shared submission service to ensure
+    // both submissions.status and articles.status remain in sync
+    const shared = new ArticleSubmissionService()
+    await shared.updateSubmissionStatus(submissionId, newStatus, userId, notes)
   }
 
   /**
@@ -2351,7 +2367,7 @@ export class EditorialWorkflow {
 
       return result.length || 0
     } catch (error) {
-      logger.error("Error expiring old assignments:", error, { operation: 'expireOldAssignments' })
+      logger.error("Error expiring old assignments", { error, operation: 'expireOldAssignments' })
       return 0
     }
   }
@@ -2378,7 +2394,7 @@ export class EditorialWorkflow {
       // If no specialist found, return any available editor
       return editors.length > 0 ? editors[0] : null
     } catch (error) {
-      logger.error("Error finding suitable editor:", error, { operation: 'findSuitableEditorForCategory', category })
+      logger.error("Error finding suitable editor", { error, operation: 'findSuitableEditorForCategory', category })
       return null
     }
   }
