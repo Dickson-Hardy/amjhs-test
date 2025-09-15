@@ -9,11 +9,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Stethoscope } from "lucide-react"
-import { useToast } from "@/components/toast-provider"
+import { useToast } from "@/hooks/use-toast"
 import { getPostAuthRedirect } from "@/lib/role-utils"
 
 export default function LoginPage() {
-  const { success, error: showErrorToast } = useToast()
+  const { toast } = useToast()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl') || null
   const returnUrl = searchParams.get('returnUrl') || null
@@ -46,7 +46,11 @@ export default function LoginPage() {
       if (result?.error) {
         const errorMessage = "Invalid email or password"
         setError(errorMessage)
-        showErrorToast("Sign In Failed", errorMessage);
+        toast({
+          variant: "destructive",
+          title: "Sign In Failed",
+          description: errorMessage
+        })
       } else {
         // Force session refresh and get user session to determine role-based redirect
         const session = await getSession()
@@ -55,7 +59,10 @@ export default function LoginPage() {
         console.log("Login session:", session)
         console.log("User role:", session?.user?.role)
         
-        success("Welcome back!", "You have been successfully signed in.")
+        toast({
+          title: "Welcome back!",
+          description: "You have been successfully signed in."
+        })
         
         // Use return URL if provided, otherwise use role-based routing
         const redirectUrl = returnUrl || getPostAuthRedirect(session)
@@ -68,7 +75,11 @@ export default function LoginPage() {
     } catch (error) {
       const errorMessage = "An error occurred. Please try again."
       setError(errorMessage)
-      showErrorToast("Sign In Failed", errorMessage)
+      toast({
+        variant: "destructive",
+        title: "Sign In Failed",
+        description: errorMessage
+      })
     } finally {
       setIsLoading(false)
     }

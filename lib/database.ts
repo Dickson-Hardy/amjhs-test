@@ -1,9 +1,10 @@
-import { db } from "./db"
+import { db, sql } from "./db"
 import { users, userApplications, userQualifications, notifications, submissions } from "./db/schema"
-import { eq, and } from "drizzle-orm"
+import { eq, and, gt } from "drizzle-orm"
 import bcrypt from "bcryptjs"
 import { v4 as uuidv4 } from "uuid"
 import { CacheManager } from "./cache"
+import { logger } from "./logger"
 
 // Export the database instance
 export { db }
@@ -70,7 +71,7 @@ export class UserService {
       }
       return userObj
     } catch (error) {
-      logger.error("Error getting user by email:", error)
+      logger.error("Error getting user by email:", { error })
       return null
     }
   }
@@ -153,7 +154,7 @@ export class UserService {
       }
       return userObj
     } catch (error) {
-      logger.error("Error getting user by ID:", error)
+      logger.error("Error getting user by ID:", { error })
       return null
     }
   }
@@ -195,7 +196,7 @@ export class UserService {
       }
       return null
     } catch (error) {
-      logger.error("Error creating user:", error)
+      logger.error("Error creating user:", { error })
       return null
     }
   }
@@ -220,7 +221,7 @@ export class UserService {
 
       return true
     } catch (error) {
-      logger.error("Error saving verification token:", error)
+      logger.error("Error saving verification token:", { error })
       return false
     }
   }
@@ -237,7 +238,7 @@ export class UserService {
         .where(eq(users.email, email))
         .limit(1)
 
-      if (!user[0] || user[0].emailVerificationprocess.env.AUTH_TOKEN_PREFIX!== token) {
+      if (!user[0] || user[0].emailVerificationToken !== token) {
         return false
       }
 
@@ -265,7 +266,7 @@ export class UserService {
 
       return true
     } catch (error) {
-      logger.error("Error verifying user:", error)
+      logger.error("Error verifying user:", { error })
       return false
     }
   }
@@ -303,7 +304,7 @@ export class UserService {
 
       return true
     } catch (error) {
-      logger.error("Error updating user profile:", error)
+      logger.error("Error updating user profile:", { error })
       return false
     }
   }
@@ -328,7 +329,7 @@ export class UserService {
 
       return true
     } catch (error) {
-      logger.error("Error saving password reset token:", error)
+      logger.error("Error saving password reset token:", { error })
       return false
     }
   }
@@ -347,10 +348,12 @@ export class UserService {
           passwordResetExpires: null,
           updatedAt: now,
         })
-        .where(and(
-          eq(users.passwordResetToken, token),
-          // Check if token hasn't expired
-        ))
+        .where(
+          and(
+            eq(users.passwordResetToken, token),
+            gt(users.passwordResetExpires, now)
+          )
+        )
         .returning({ id: users.id, email: users.email })
 
       if (result.length === 0) {
@@ -371,7 +374,7 @@ export class UserService {
 
       return true
     } catch (error) {
-      logger.error("Error resetting password:", error)
+      logger.error("Error resetting password:", { error })
       return false
     }
   }
@@ -397,7 +400,7 @@ export class UserService {
 
       return true
     } catch (error) {
-      logger.error("Error creating notification:", error)
+      logger.error("Error creating notification:", { error })
       return false
     }
   }
@@ -414,7 +417,7 @@ export class UserService {
 
       // Don't invalidate cache for this minor update
     } catch (error) {
-      logger.error("Error updating last active:", error)
+      logger.error("Error updating last active:", { error })
     }
   }
 
@@ -429,7 +432,7 @@ export class UserService {
 
       return result.length > 0
     } catch (error) {
-      logger.error("Error checking if user exists:", error)
+      logger.error("Error checking if user exists:", { error })
       return false
     }
   }
@@ -451,7 +454,7 @@ export class UserService {
         FROM articles 
         WHERE author_id = ${userId}
       `
-      const submissionsCount = parseInt(submissionsResult.rows[0]?.count || '0')
+      const submissionsCount = parseInt((submissionsResult as any)[0]?.count || '0')
 
       // Count user's reviews
       const reviewsResult = await sql`
@@ -459,7 +462,7 @@ export class UserService {
         FROM reviews 
         WHERE reviewer_id = ${userId}
       `
-      const reviewsCount = parseInt(reviewsResult.rows[0]?.count || '0')
+      const reviewsCount = parseInt((reviewsResult as any)[0]?.count || '0')
 
       // Count user's published articles
       const publicationsResult = await sql`
@@ -467,7 +470,7 @@ export class UserService {
         FROM articles 
         WHERE author_id = ${userId} AND status = 'published'
       `
-      const publicationsCount = parseInt(publicationsResult.rows[0]?.count || '0')
+      const publicationsCount = parseInt((publicationsResult as any)[0]?.count || '0')
 
       // Calculate profile completeness
       let profileCompleteness = 0
@@ -477,7 +480,7 @@ export class UserService {
       if (user?.orcid) profileCompleteness += 15
       if (user?.expertise) profileCompleteness += 15
       if (user?.bio) profileCompleteness += 10
-      if (user?.website) profileCompleteness += 10
+  // website field not present in schema; skip to avoid mismatch
       
       return {
         submissionsCount,
@@ -486,7 +489,7 @@ export class UserService {
         profileCompleteness,
       }
     } catch (error) {
-      logger.error("Error getting user stats:", error)
+      logger.error("Error getting user stats:", { error })
       return {
         submissionsCount: 0,
         reviewsCount: 0,
@@ -503,10 +506,10 @@ export class DatabaseService {
     try {
       // This is a simplified implementation
       // In a real scenario, you would execute the SQL query using the db instance
-      logger.error('Executing query:', sql, params)
+      logger.info('Executing query', { query: sql, params })
       return []
     } catch (error) {
-      logger.error('Database query error:', error)
+      logger.error('Database query error:', { error })
       throw error
     }
   }
@@ -515,7 +518,7 @@ export class DatabaseService {
     try {
       return await callback()
     } catch (error) {
-      logger.error('Database transaction error:', error)
+      logger.error('Database transaction error:', { error })
       throw error
     }
   }
@@ -525,7 +528,7 @@ export class DatabaseService {
       const [submission] = await db.select().from(submissions).where(eq(submissions.id, id)).limit(1)
       return submission
     } catch (error) {
-      logger.error('Error fetching submission:', error)
+      logger.error('Error fetching submission:', { error })
       return null
     }
   }

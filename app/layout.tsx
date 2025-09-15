@@ -20,7 +20,12 @@ if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL'),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    'http://localhost:3000'
+  ),
   title: {
     default: "AJRS - Academic Journal Research System",
     template: "%s | AJRS",

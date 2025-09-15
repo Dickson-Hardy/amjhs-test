@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { eq, and, desc } from "drizzle-orm"
 import { issues, articles, volumes } from "@/lib/db/schema"
+import { logger } from "@/lib/logger"
 
 export async function GET() {
   try {
@@ -23,8 +24,36 @@ export async function GET() {
 
     const currentIssue = latestIssue[0]
     
-    // Get articles for this issue (if we have the proper relationship)
-    // For now, return the issue data without articles since the relationship may not exist
+    // Get articles for this issue using volume and issue numbers
+    const issueArticles = await db
+      .select({
+        id: articles.id,
+        title: articles.title,
+        abstract: articles.abstract,
+        category: articles.category,
+        status: articles.status,
+        doi: articles.doi,
+        volume: articles.volume,
+        issue: articles.issue,
+        pages: articles.pages,
+        publishedDate: articles.publishedDate,
+        authorId: articles.authorId,
+        coAuthors: articles.coAuthors,
+        views: articles.views,
+        downloads: articles.downloads,
+        citations: articles.citations,
+        keywords: articles.keywords,
+      })
+      .from(articles)
+      .where(
+        and(
+          eq(articles.status, "published"),
+          eq(articles.volume, currentIssue.volumeId?.toString() || currentIssue.number?.toString() || "1"),
+          eq(articles.issue, currentIssue.number?.toString() || "1")
+        )
+      )
+      .orderBy(desc(articles.publishedDate))
+
     return NextResponse.json({
       success: true,
       issue: {
@@ -38,11 +67,11 @@ export async function GET() {
         specialIssue: currentIssue.specialIssue,
         guestEditors: currentIssue.guestEditors,
       },
-      articles: [], // Return empty for now since we need to check article-issue relationship
+      articles: issueArticles,
     })
 
   } catch (error) {
-    logger.error("Error fetching current issue data:", error)
+    console.error("Error fetching current issue data:", error)
     return NextResponse.json(
       {
         success: false,

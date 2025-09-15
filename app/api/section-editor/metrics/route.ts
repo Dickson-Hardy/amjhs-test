@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { logError } from "@/lib/logger"
 import { articles, users } from "@/lib/db/schema"
 import { eq, and, count, avg, desc } from "drizzle-orm"
 
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
       db.select({ count: count() })
         .from(articles)
         .where(and(
-          eq(articles.editor_id, session.user.id),
+          eq(articles.editorId, session.user.id),
           eq(articles.category, userSection)
         )),
       
@@ -48,8 +49,8 @@ export async function GET(request: NextRequest) {
       db.select({ count: count() })
         .from(articles)
         .where(and(
-          eq(articles.editor_id, session.user.id),
-          eq(articles.status, "reviewer_decision_received")
+          eq(articles.editorId, session.user.id),
+          eq(articles.status, "associate_editor_review")
         )),
       
       // Accepted articles for acceptance rate calculation
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(metrics)
 
   } catch (error) {
-    logger.error("Error fetching section editor metrics:", error)
+    logError(error as Error, { endpoint: "/api/section-editor/metrics", action: "fetchSectionEditorMetrics" })
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

@@ -1,7 +1,7 @@
 /**
  * Lazy Loading Utilities for Next.js 15+
  */
-import { lazy, Suspense, ComponentType, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, ComponentType, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 
 export function createLazyComponent<T = {}>(
@@ -9,14 +9,13 @@ export function createLazyComponent<T = {}>(
   fallback?: React.ReactNode
 ) {
   const LazyComponent = lazy(importFn);
-  
-  return function LazyWrapper(props: T) {
-    return (
-      <Suspense fallback={fallback || <div>Loading...</div>}>
-        <LazyComponent {...props} />
-      </Suspense>
-    );
-  };
+  // This must be a .tsx file for JSX
+  const LazyWrapper = (props: T) => (
+    <Suspense fallback={fallback || <div>Loading...</div>}>
+      <LazyComponent {...props} />
+    </Suspense>
+  );
+  return LazyWrapper;
 }
 
 export function createDynamicComponent<T = {}>(

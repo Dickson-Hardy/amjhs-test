@@ -6,6 +6,7 @@ import { articles, review_assignments } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { z } from "zod"
 import { sendReviewInvitation } from "@/lib/email-hybrid"
+import { normalizeStatus } from "@/lib/status"
 import { logError } from "@/lib/logger"
 
 const assignmentSchema = z.object({
@@ -70,7 +71,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Update article status to under_review if not already
-            if (submission[0].status === "editorial_assistant_review" || submission[0].status === "submitted") {
+    const norm = normalizeStatus(submission[0].status as string) || submission[0].status
+    if (norm === "editorial_assistant_review" || norm === "submitted") {
       await db
         .update(articles)
         .set({ 
@@ -94,7 +96,7 @@ export async function POST(request: NextRequest) {
     try {
       // This would be implemented with proper email service
       // For now, we'll just log the assignment
-      logger.error(`Review assignment created for submission ${submissionId} to reviewer ${reviewerId}`)
+      logError(new Error("review_assignment_log"), { message: `Review assignment created`, submissionId, reviewerId })
     } catch (emailError) {
       logError(emailError as Error, {
         operation: "assign_reviewer_email",
@@ -109,7 +111,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    logger.error("Error assigning reviewer:", error)
+    logError(error as Error, { endpoint: "/api/section-editor/assign-reviewer", action: "assignReviewer" })
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(

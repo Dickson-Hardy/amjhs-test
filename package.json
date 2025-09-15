@@ -36,7 +36,8 @@
     "db:validate-schema": "node scripts/validate-database-schema.cjs",
     "db:create-missing": "node scripts/create-missing-tables.cjs",
     "db:inspect-admin": "node scripts/inspect-admin-logs.cjs",
-    "db:health": "node scripts/database-health-check.cjs"
+    "db:health": "node scripts/database-health-check.cjs",
+    "db:check": "node scripts/comprehensive-db-check.cjs"
   },
   "dependencies": {
     "@auth/core": "latest",

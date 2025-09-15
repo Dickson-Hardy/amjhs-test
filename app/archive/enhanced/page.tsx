@@ -260,7 +260,7 @@ export default function EnhancedArchivePage() {
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="browse" className="flex items-center gap-2">
               <Search className="h-4 w-4" />
-              Browse Articles
+              Browse Research Papers
             </TabsTrigger>
             <TabsTrigger value="volumes" className="flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
@@ -276,7 +276,7 @@ export default function EnhancedArchivePage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Browse Articles Tab */}
+          {/* Browse Research Papers Tab */}
           <TabsContent value="browse">
             {/* Search and Filters */}
             <Card className="mb-8">

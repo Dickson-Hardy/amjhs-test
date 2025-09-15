@@ -106,7 +106,7 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/submit" className="text-blue-600 hover:text-blue-800">
-                  Submit Article
+                  Submit Research Paper
                 </Link>
               </li>
               <li>

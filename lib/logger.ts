@@ -66,12 +66,12 @@ const logger: Logger = {
   },
   api: (message: string, context?: LogContext) => {
     if (shouldLog('info')) {
-      console.log(formatLogMessage('info', `[API] ${message}`, { ...context, category: 'api' }))
+      console.log(formatLogMessage('info', `[API] ${message}`, { ...(context ?? {}), category: 'api' }))
     }
   },
   security: (message: string, context?: LogContext) => {
     if (shouldLog('warn')) {
-      console.warn(formatLogMessage('warn', `[SECURITY] ${message}`, { ...context, category: 'security' }))
+      console.warn(formatLogMessage('warn', `[SECURITY] ${message}`, { ...(context ?? {}), category: 'security' }))
     }
   }
 }
@@ -82,7 +82,11 @@ export { logger }
 export function logError(error: Error, context?: unknown) {
   logger.error(error.message, {
     stack: error.stack,
-    ...context,
+    ...(typeof context === 'object' && context !== null
+      ? (context as Record<string, unknown>)
+      : context !== undefined
+        ? { data: context }
+        : {}),
     timestamp: new Date().toISOString(),
   })
 }

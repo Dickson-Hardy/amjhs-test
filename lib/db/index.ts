@@ -3,6 +3,10 @@ import postgres from "postgres"
 import * as schema from "./schema"
 import { logger } from "../logger"
 
+// Load environment variables
+import dotenv from "dotenv"
+dotenv.config()
+
 // Create connection with pooling - postgres.js supports transactions
 const sql = postgres(process.env.DATABASE_URL!, {
   max: 20, // Maximum number of connections

@@ -62,7 +62,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const sidebarItems = [
     { id: "overview", label: "Dashboard", icon: Home, href: "/dashboard", shortLabel: "Home" },
     { id: "submissions", label: "My Research", icon: FileText, href: "/dashboard?tab=submissions", shortLabel: "Research" },
-    { id: "submit", label: "Submit Article", icon: Upload, href: "/submit", shortLabel: "Submit" },
+    { id: "submit", label: "Submit Research Paper", icon: Upload, href: "/submit", shortLabel: "Submit" },
     { id: "reviews", label: "My Reviews", icon: Eye, href: "/dashboard?tab=reviews", shortLabel: "Reviews" },
     { id: "bookmarks", label: "Bookmarks", icon: Bookmark, href: "/dashboard?tab=bookmarks", shortLabel: "Saved" },
     { id: "profile", label: "Profile", icon: User, href: "/dashboard/profile", shortLabel: "Profile" },

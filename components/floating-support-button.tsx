@@ -37,7 +37,7 @@ export default function FloatingSupportButton() {
       title: "Email",
       description: "support@amhsj.org",
       action: () => {
-        window.location.href = "process.env.EMAIL_FROMsupport@amhsj.org"
+        window.location.href = "mailto:support@amhsj.org"
         setIsOpen(false)
       },
       color: "text-purple-600 hover:bg-purple-50"

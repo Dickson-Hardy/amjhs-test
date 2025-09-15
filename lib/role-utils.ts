@@ -185,7 +185,7 @@ export function getRoleHierarchy(role: string | undefined): number {
     case "author":
       return 20 // Submission authority
     case "user":
-      return 10 // process.env.AUTH_TOKEN_PREFIX + ' 'user
+      return 10 // basic authenticated user
     default:
       return 0 // No authority
   }

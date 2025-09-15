@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { Download, Calendar, User, ExternalLink, FileText, ArrowRight, Search, ChevronRight, BookOpen, TrendingUp, Globe, Users } from "lucide-react"
+import { Download, Calendar, User, ExternalLink, FileText, ArrowRight, Search, ChevronRight, BookOpen, TrendingUp, Globe, Users, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -70,12 +70,12 @@ interface CurrentIssue {
 export default function HomePage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const [featuredArticles, setFeaturedArticles] = useState<Article[]>([])
-  const [currentIssueArticles, setCurrentIssueArticles] = useState<Article[]>([])
-  const [stats, setStats] = useState({ totalArticles: 0, totalIssues: 0, totalVolumes: 0 })
-  const [currentIssue, setCurrentIssue] = useState<CurrentIssue | null>(null)
-  const [latestNews, setLatestNews] = useState<NewsItem[]>([])
-  const [journalInfo, setJournalInfo] = useState<JournalInfo | null>(null)
+  const [featuredArticles, setFeaturedArticles] = useState<Article[]>([])  
+  const [currentIssueArticles, setCurrentIssueArticles] = useState<Article[]>([])  
+  const [stats, setStats] = useState({ totalArticles: 0, totalIssues: 0, totalVolumes: 0 })  
+  const [currentIssue, setCurrentIssue] = useState<CurrentIssue | null>(null)  
+  const [latestNews, setLatestNews] = useState<NewsItem[]>([])  
+  const [journalInfo, setJournalInfo] = useState<JournalInfo | null>(null)  
   const [loading, setLoading] = useState(true)
 
   const handleSubmitManuscript = () => {
@@ -91,58 +91,38 @@ export default function HomePage() {
       try {
         setLoading(true)
         
-        const [articlesRes, statsRes, currentIssueRes, newsRes, journalInfoRes] = await Promise.all([
-          fetch("/api/articles?featured=true&limit=6"),
-          fetch("/api/stats"),
-          fetch("/api/current-issue-data"),
-          fetch("/api/news?limit=5"),
-          fetch("/api/journal-info"),
-        ])
+        // Single optimized API call instead of 5 separate calls
+        const response = await fetch("/api/homepage-data")
+        const result = await response.json()
 
-        // Parse all responses
-        const [articlesData, statsData, currentIssueData, newsData, journalInfoData] = await Promise.all([
-          articlesRes.json().catch(() => ({ success: false })),
-          statsRes.json().catch(() => ({ success: false })),
-          currentIssueRes.json().catch(() => ({ success: false })),
-          newsRes.json().catch(() => ({ success: false })),
-          journalInfoRes.json().catch(() => ({ success: false })),
-        ])
+        if (result.success && result.data) {
+          const { featuredArticles, currentIssue, currentIssueArticles, news, journalInfo, stats } = result.data
 
-        // Set featured articles
-        if (articlesData.success && articlesData.articles) {
-          setFeaturedArticles(articlesData.articles)
-        }
-
-        // Set journal info first (primary source)
-        if (journalInfoData.success && journalInfoData.data) {
-          setJournalInfo(journalInfoData.data)
-          // Use journal info stats as primary source
-          if (journalInfoData.data.stats) {
-            setStats(journalInfoData.data.stats)
+          // Set all data from single response
+          if (featuredArticles) {
+            setFeaturedArticles(featuredArticles)
           }
-        }
 
-        // Override with API stats if available and more recent
-        if (statsData.success && statsData.stats) {
-          setStats(prev => ({
-            ...prev,
-            ...statsData.stats
-          }))
-        }
+          if (currentIssue) {
+            setCurrentIssue(currentIssue as CurrentIssue)
+            setCurrentIssueArticles(currentIssueArticles || [])
+          }
 
-        // Set current issue
-        if (currentIssueData.success && currentIssueData.issue) {
-          setCurrentIssue(currentIssueData.issue as CurrentIssue)
-          setCurrentIssueArticles(currentIssueData.articles || [])
-        }
+          if (news && news.length > 0) {
+            setLatestNews(news)
+          }
 
-        // Handle news data - only from database/API
-        if (newsData.success && newsData.news?.length > 0) {
-          setLatestNews(newsData.news)
+          if (journalInfo) {
+            setJournalInfo(journalInfo)
+          }
+
+          if (stats) {
+            setStats(stats)
+          }
         }
       } catch (error) {
         console.error("Error fetching homepage data:", error)
-        // No fallback data on error - keep empty arrays/states
+        // Keep empty states on error
       } finally {
         setLoading(false)
       }
@@ -209,7 +189,7 @@ export default function HomePage() {
                   className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold px-8 py-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 button-enhanced pulse-glow"
                   onClick={handleSubmitManuscript}
                 >
-                  Submit Your Research
+                  Submit Your Research Paper
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
                 <Button 
@@ -361,32 +341,38 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            {/* Current Issue - Enhanced Design */}
-            <Card className="border-0 shadow-lg hover-lift fade-in-up delay-200">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                  <div className="w-1 h-8 bg-gradient-to-b from-blue-600 to-indigo-600 rounded-full"></div>
-                  Current Issue
+            {/* Current Volume/Issue - Enhanced Design */}
+            <Card className="border-0 shadow-xl bg-gradient-to-br from-white to-blue-50/50 hover-lift fade-in-up delay-200">
+              <CardHeader className="pb-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
+                <CardTitle className="text-3xl font-bold flex items-center gap-3">
+                  <BookOpen className="h-8 w-8" />
+                  Current Volume & Issue
                 </CardTitle>
+                <p className="text-blue-100 text-lg">Latest published research in our journal</p>
               </CardHeader>
               <CardContent>
                 {currentIssue ? (
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-2xl">
+                  <div className="bg-gradient-to-br from-white to-blue-50 p-8 rounded-2xl border-2 border-blue-200">
                     <div className="flex flex-col md:flex-row gap-8">
                       <div className="flex-shrink-0">
                         <div className="relative group">
                           <img 
                             src={currentIssue.coverImageUrl || "/api/placeholder/160/200"}
                             alt={`Cover of ${currentIssue.title}`}
-                            className="w-32 h-40 object-cover rounded-lg shadow-lg group-hover:shadow-xl transition-shadow"
+                            className="w-40 h-52 object-cover rounded-xl shadow-2xl group-hover:shadow-3xl transition-shadow border-4 border-white"
                           />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg transition-colors"></div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-xl transition-opacity group-hover:opacity-0"></div>
+                          <div className="absolute bottom-2 left-2 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                            CURRENT
+                          </div>
                         </div>
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                          {currentIssue.volumeInfo ? `${currentIssue.volumeInfo} • Issue ${currentIssue.number}` : currentIssue.title}
-                        </h3>
+                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl mb-4 inline-block">
+                          <h3 className="text-3xl font-bold">
+                            {currentIssue.volumeInfo ? `${currentIssue.volumeInfo} • Issue ${currentIssue.number}` : currentIssue.title}
+                          </h3>
+                        </div>
                         {currentIssue.publishedAt && (
                           <div className="flex items-center gap-2 text-gray-600 mb-4">
                             <Calendar className="h-4 w-4" />
@@ -404,7 +390,7 @@ export default function HomePage() {
                           <div>
                             <h4 className="font-bold text-gray-900 text-lg mb-4 flex items-center gap-2">
                               <FileText className="h-5 w-5 text-blue-600" />
-                              Featured Articles
+                              Featured Research Papers
                             </h4>
                             <div className="grid gap-3">
                               {currentIssueArticles.slice(0, 3).map((article) => (
@@ -453,7 +439,7 @@ export default function HomePage() {
                     className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800"
                     onClick={handleSubmitManuscript}
                   >
-                    Submit Your Research
+                    Submit Your Research Paper
                   </Button>
                 </div>
               </CardContent>
@@ -561,13 +547,19 @@ export default function HomePage() {
                       />
                     </div>
                     <Button 
+                      type="button"
                       className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" 
                       onClick={(e) => {
-                        const form = e.currentTarget.closest('form') || e.currentTarget.parentElement
-                        const titleInput = form?.querySelector('input[placeholder="Article title"]') as HTMLInputElement
-                        const searchQuery = titleInput?.value || ''
+                        const container = e.currentTarget.parentElement
+                        const allFieldsInput = container?.querySelector('input[placeholder="Search articles, authors..."]') as HTMLInputElement
+                        const authorsInput = container?.querySelector('input[placeholder="Author name"]') as HTMLInputElement
+                        const titleInput = container?.querySelector('input[placeholder="Article title"]') as HTMLInputElement
+                        
+                        const searchQuery = allFieldsInput?.value || titleInput?.value || authorsInput?.value || ''
                         if (searchQuery.trim()) {
-                          window.location.href = `/search?q=${encodeURIComponent(searchQuery)}`
+                          router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
+                        } else {
+                          router.push('/search')
                         }
                       }}
                     >
@@ -578,32 +570,60 @@ export default function HomePage() {
                 </CardContent>
               </Card>
 
-              {/* Current Issue Sidebar */}
-              <Card className="border-0 shadow-lg">
+              {/* Enhanced Current Volume Sidebar */}
+              <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <BookOpen className="h-5 w-5 text-blue-600" />
-                    Current Issue
+                  <CardTitle className="text-xl font-bold flex items-center gap-2">
+                    <BookOpen className="h-6 w-6" />
+                    Current Volume
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-center">
-                  <div className="relative group mb-4">
+                  <div className="relative group mb-6">
                     <img 
                       src={currentIssue?.coverImageUrl || "/api/placeholder/120/150"} 
-                      alt={currentIssue ? `Cover of ${currentIssue.title}` : "Current Issue"} 
-                      className="w-24 h-30 object-cover rounded-lg shadow-md mx-auto group-hover:shadow-lg transition-shadow"
+                      alt={currentIssue ? `Cover of ${currentIssue.title}` : "Current Volume"} 
+                      className="w-32 h-40 object-cover rounded-xl shadow-2xl mx-auto group-hover:shadow-3xl transition-shadow border-4 border-white/20"
                     />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg transition-colors"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent rounded-xl transition-opacity group-hover:opacity-0"></div>
+                    <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold pulse-glow">
+                      NEW
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-600 mb-3 font-medium">
-                    {currentIssue?.volumeInfo 
-                      ? `${currentIssue.volumeInfo} • Issue ${currentIssue.number}`
-                      : "Latest Issue"
-                    }
+                  <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 mb-4">
+                    <div className="text-lg font-bold mb-2">
+                      {currentIssue?.volumeInfo 
+                        ? `${currentIssue.volumeInfo} • Issue ${currentIssue.number}`
+                        : "Latest Volume"
+                      }
+                    </div>
+                    <div className="text-sm opacity-90">
+                      Published Research Collection
+                    </div>
                   </div>
-                  <Button size="sm" variant="outline" className="w-full" asChild>
-                    <Link href="/current-issue">View Contents</Link>
-                  </Button>
+                  <div className="space-y-3">
+                    <Button 
+                      size="sm" 
+                      className="w-full bg-white text-blue-600 hover:bg-blue-50 font-semibold" 
+                      asChild
+                    >
+                      <Link href="/current-issue">
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Contents
+                      </Link>
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full border-white/30 text-white hover:bg-white/10" 
+                      asChild
+                    >
+                      <Link href="/archive/volumes">
+                        <BookOpen className="h-4 w-4 mr-2" />
+                        All Volumes
+                      </Link>
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 

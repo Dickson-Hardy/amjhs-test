@@ -1,6 +1,7 @@
 // lib/workflow.ts
 
 import { db } from "./db"
+import { CanonicalStatus, WORKFLOW_TRANSITIONS as CANON_TRANSITIONS, canTransition, normalizeStatus } from "./status"
 import { 
   submissions, 
   articles, 
@@ -64,20 +65,7 @@ interface WorkflowHistoryEntry {
 }
 
 // Workflow status types - Updated to match AMHSJ workflow
-export type WorkflowStatus = 
-  | "draft"
-  | "submitted" 
-  | "editorial_assistant_review"  // New stage for initial screening
-  | "associate_editor_assignment" // New stage for associate editor selection
-  | "associate_editor_review"     // New stage for associate editor review
-  | "reviewer_assignment"         // New stage for reviewer selection
-  | "under_review"
-  | "revision_requested"
-  | "revision_submitted"
-  | "accepted"
-  | "rejected"
-  | "published"
-  | "withdrawn"
+export type WorkflowStatus = CanonicalStatus
 
 export type ReviewStatus = 
   | "pending"
@@ -94,45 +82,26 @@ export type ReviewRecommendation =
   | "reject"
 
 // Updated workflow state machine configuration
-export const WORKFLOW_TRANSITIONS: Record<WorkflowStatus, WorkflowStatus[]> = {
-  draft: ["submitted", "withdrawn"],
-  submitted: ["editorial_assistant_review", "withdrawn"],
-  editorial_assistant_review: ["associate_editor_assignment", "revision_requested", "withdrawn"],
-  associate_editor_assignment: ["associate_editor_review", "revision_requested"],
-  associate_editor_review: ["reviewer_assignment", "revision_requested", "rejected"],
-  reviewer_assignment: ["under_review", "revision_requested"],
-  under_review: ["revision_requested", "accepted", "rejected"],
-  revision_requested: ["revision_submitted", "withdrawn"],
-  revision_submitted: ["editorial_assistant_review", "associate_editor_review", "accepted", "rejected"],
-  accepted: ["published"],
-  rejected: ["withdrawn"], // Allow withdrawal after rejection for appeals
-  published: [],
-  withdrawn: []
-}
+export const WORKFLOW_TRANSITIONS = CANON_TRANSITIONS
 
 /**
  * Enhanced workflow state validation with proper error handling
  */
 export function validateWorkflowTransition(
-  currentStatus: WorkflowStatus, 
+  currentStatus: WorkflowStatus,
   newStatus: WorkflowStatus
 ): { valid: boolean; error?: string } {
-  if (!WORKFLOW_TRANSITIONS[currentStatus]) {
+  const cur = normalizeStatus(currentStatus)
+  const next = normalizeStatus(newStatus)
+  if (!cur) return { valid: false, error: `Invalid current status: ${currentStatus}` }
+  if (!next) return { valid: false, error: `Invalid new status: ${newStatus}` }
+  const valid = canTransition(cur, next)
+  if (!valid) {
     return {
       valid: false,
-      error: `Invalid current status: ${currentStatus}`
+      error: `Invalid transition from ${cur} to ${next}. Allowed: ${WORKFLOW_TRANSITIONS[cur].join(', ')}`,
     }
   }
-
-  const allowedTransitions = WORKFLOW_TRANSITIONS[currentStatus]
-  
-  if (!allowedTransitions.includes(newStatus)) {
-    return {
-      valid: false,
-      error: `Invalid transition from ${currentStatus} to ${newStatus}. Allowed: ${allowedTransitions.join(', ')}`
-    }
-  }
-
   return { valid: true }
 }
 
@@ -144,14 +113,7 @@ interface ReviewerCriteria {
   minQualityScore: number
 }
 
-// Workflow history entry
-interface WorkflowHistoryEntry {
-  status: string
-  timestamp: Date
-  userId: string
-  notes?: string
-  systemGenerated?: boolean
-}
+// (deduplicated) Workflow history entry declared above
 
 /**
  * Create system notification for workflow events
@@ -1188,8 +1150,13 @@ export class ArticleSubmissionService {
         return { success: false, message: "Submission not found" }
       }
 
-      // Validate status transition
-      const validation = validateWorkflowTransition(submission.status as WorkflowStatus, newStatus)
+      // Validate status transition using normalized values
+      const currentNorm = normalizeStatus(submission.status as string)
+      const nextNorm = normalizeStatus(newStatus)
+      if (!currentNorm || !nextNorm) {
+        return { success: false, message: "Invalid status value" }
+      }
+      const validation = validateWorkflowTransition(currentNorm, nextNorm)
       
       if (!validation.valid) {
         return {
@@ -1211,7 +1178,7 @@ export class ArticleSubmissionService {
       await db
         .update(submissions)
         .set({
-          status: newStatus,
+          status: nextNorm,
           statusHistory: [...currentHistory, newHistoryEntry],
           updatedAt: new Date()
         })
@@ -1222,7 +1189,7 @@ export class ArticleSubmissionService {
         await db
           .update(articles)
           .set({
-            status: newStatus,
+            status: nextNorm,
             updatedAt: new Date()
           })
           .where(eq(articles.id, submission.articleId))

@@ -19,7 +19,6 @@ import {
 interface Article {
   id: string
   title: string
-  authors: string[]
   abstract: string
   category: string
   pages: string
@@ -27,77 +26,81 @@ interface Article {
   publishedDate: string
   downloads: number
   citations: number
-  type: "research" | "review" | "case-study" | "editorial"
+  views: number
+  authorId: string
+  coAuthors?: { name: string; email: string; affiliation: string }[]
+  keywords?: string[]
+  status: string
+}
+
+interface Issue {
+  id: string
+  title: string
+  number: number
+  description: string
+  publishedDate: string
+  coverImage?: string
+  status: string
+  specialIssue: boolean
+  guestEditors?: string
 }
 
 export default function CurrentIssuePage() {
   const [articles, setArticles] = useState<Article[]>([])
+  const [issue, setIssue] = useState<Issue | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Mock data for current issue - replace with API call
-    const mockArticles: Article[] = [
-      {
-        id: "1",
-        title: "Advanced Machine Learning Applications in Personalized Medicine: A Comprehensive Review",
-        authors: ["Dr. Sarah Chen", "Prof. Michael Rodriguez", "Dr. Lisa Wang"],
-        abstract: "This comprehensive review examines the transformative potential of machine learning in personalized medicine, focusing on recent advances in genomic analysis, drug discovery, and treatment optimization...",
-        category: "Medical AI",
-        pages: "1-18",
-        doi: "10.1234/amhsj.2025.001",
-        publishedDate: "2025-06-15",
-        downloads: 1247,
-        citations: 8,
-        type: "research"
-      },
-      {
-        id: "2",
-        title: "IoT-Enabled Remote Patient Monitoring: Real-World Implementation and Clinical Outcomes",
-        authors: ["Dr. James Thompson", "Dr. Maria Garcia", "Prof. David Kim"],
-        abstract: "We present a comprehensive analysis of IoT-enabled remote patient monitoring systems implemented across three major healthcare networks, demonstrating significant improvements in patient outcomes...",
-        category: "Healthcare Technology",
-        pages: "19-35",
-        doi: "10.1234/amhsj.2025.002",
-        publishedDate: "2025-06-10",
-        downloads: 892,
-        citations: 5,
-        type: "research"
-      },
-      {
-        id: "3",
-        title: "Blockchain Technology in Healthcare Data Management: Security and Privacy Perspectives",
-        authors: ["Dr. Anna Kowalski", "Prof. Robert Liu"],
-        abstract: "This paper explores the implementation of blockchain technology for secure healthcare data management, addressing current challenges in data privacy, interoperability, and patient consent...",
-        category: "Health Informatics",
-        pages: "36-52",
-        doi: "10.1234/amhsj.2025.003",
-        publishedDate: "2025-06-08",
-        downloads: 654,
-        citations: 3,
-        type: "review"
-      },
-      {
-        id: "4",
-        title: "Editorial: The Future of Digital Health - Opportunities and Challenges in Post-Pandemic Healthcare",
-        authors: ["Dr. Editor-in-Chief"],
-        abstract: "As we navigate the post-pandemic healthcare landscape, digital health technologies have emerged as critical tools for improving access, quality, and efficiency of healthcare delivery...",
-        category: "Editorial",
-        pages: "i-iii",
-        doi: "10.1234/amhsj.2025.editorial",
-        publishedDate: "2025-06-01",
-        downloads: 423,
-        citations: 1,
-        type: "editorial"
-      }
-    ]
+    async function fetchCurrentIssue() {
+      try {
+        const response = await fetch("/api/current-issue-data")
+        const data = await response.json()
 
-    setTimeout(() => {
-      setArticles(mockArticles)
-      setLoading(false)
-    }, 1000)
+        if (data.success) {
+          setIssue(data.issue)
+          setArticles(data.articles || [])
+        } else {
+          setError(data.error || "Failed to load current issue")
+        }
+      } catch (error) {
+        console.error("Error fetching current issue:", error)
+        setError("Failed to load current issue")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCurrentIssue()
   }, [])
 
-  const getTypeIcon = (type: string) => {
+  const getAuthorNames = (article: Article) => {
+    const authors = []
+    
+    // Add main author (we'd need to fetch user data by authorId)
+    if (article.authorId) {
+      authors.push("Author") // Placeholder - would need to fetch user name
+    }
+    
+    // Add co-authors
+    if (article.coAuthors && article.coAuthors.length > 0) {
+      authors.push(...article.coAuthors.map(author => author.name))
+    }
+    
+    return authors.length > 0 ? authors.join(", ") : "Unknown Author"
+  }
+
+  const getArticleType = (category: string) => {
+    // Map categories to types for styling
+    const categoryLower = category.toLowerCase()
+    if (categoryLower.includes("editorial")) return "editorial"
+    if (categoryLower.includes("review")) return "review"
+    if (categoryLower.includes("case")) return "case-study"
+    return "research"
+  }
+
+  const getTypeIcon = (category: string) => {
+    const type = getArticleType(category)
     switch (type) {
       case "research": return <FileText className="h-4 w-4" />
       case "review": return <BookOpen className="h-4 w-4" />
@@ -107,7 +110,8 @@ export default function CurrentIssuePage() {
     }
   }
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = (category: string) => {
+    const type = getArticleType(category)
     switch (type) {
       case "research": return "bg-blue-100 text-blue-800 border-blue-300"
       case "review": return "bg-green-100 text-green-800 border-green-300"
@@ -128,6 +132,23 @@ export default function CurrentIssuePage() {
     )
   }
 
+  if (error || !issue) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <FileText className="h-16 w-16 mx-auto mb-6 text-gray-300" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-3">No Current Issue Available</h3>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            {error || "The latest issue is being prepared. Check back soon for new publications!"}
+          </p>
+          <Button variant="outline" onClick={() => window.history.back()}>
+            Go Back
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50/30">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -141,19 +162,23 @@ export default function CurrentIssuePage() {
               <div className="flex items-center justify-center gap-6 text-sm text-gray-600 mb-6">
                 <div className="flex items-center">
                   <Calendar className="h-4 w-4 mr-2" />
-                  Volume 15, Issue 2 - June 2025
+                  {issue.title || `Volume ${issue.number || 1}, Issue ${issue.number || 1}`} - {new Date(issue.publishedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </div>
                 <div className="flex items-center">
                   <FileText className="h-4 w-4 mr-2" />
-                  {articles.length} Articles
+                  {articles.length} Research Papers
                 </div>
                 <div className="flex items-center">
                   <Users className="h-4 w-4 mr-2" />
-                  {articles.reduce((total, article) => total + article.authors.length, 0)} Authors
+                  {articles.reduce((total, article) => {
+                    let count = 1; // Main author
+                    if (article.coAuthors) count += article.coAuthors.length;
+                    return total + count;
+                  }, 0)} Authors
                 </div>
               </div>
               <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-                Advancing Medical Knowledge Through Health Sciences and Technology Integration
+                {issue.description || "Advancing Medical Knowledge Through Health Sciences and Technology Integration"}
               </p>
             </div>
           </div>
@@ -191,7 +216,11 @@ export default function CurrentIssuePage() {
           <Card className="bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
             <CardContent className="p-6 text-center">
               <div className="text-3xl font-bold text-orange-600 mb-2">
-                {articles.reduce((total, article) => total + article.authors.length, 0)}
+                {articles.reduce((total, article) => {
+                  let count = 1; // Main author
+                  if (article.coAuthors) count += article.coAuthors.length;
+                  return total + count;
+                }, 0)}
               </div>
               <div className="text-sm text-orange-700">Contributing Authors</div>
             </CardContent>
@@ -200,85 +229,103 @@ export default function CurrentIssuePage() {
 
         {/* Articles List */}
         <div className="space-y-6">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">Articles in This Issue</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">Research Papers in This Issue</h2>
           
-          {articles.map((article, index) => (
-            <Card key={article.id} className="hover:shadow-lg transition-all duration-200">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Badge className={getTypeColor(article.type)} variant="outline">
-                        {getTypeIcon(article.type)}
-                        <span className="ml-1 capitalize">{article.type}</span>
-                      </Badge>
-                      <Badge variant="secondary" className="bg-gray-100">
-                        {article.category}
-                      </Badge>
-                      <span className="text-sm text-gray-600">Pages {article.pages}</span>
-                    </div>
-                    
-                    <h3 className="text-xl font-semibold text-gray-900 mb-3 hover:text-indigo-600 cursor-pointer">
-                      {article.title}
-                    </h3>
-                    
-                    <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                      <div className="flex items-center">
-                        <Users className="h-4 w-4 mr-1" />
-                        {article.authors.join(", ")}
-                      </div>
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        {new Date(article.publishedDate).toLocaleDateString()}
-                      </div>
-                    </div>
-                    
-                    <p className="text-gray-700 text-sm leading-relaxed mb-4 line-clamp-3">
-                      {article.abstract}
-                    </p>
-                    
-                    <div className="flex items-center gap-6 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        <Download className="h-4 w-4 mr-1" />
-                        {article.downloads.toLocaleString()} downloads
-                      </div>
-                      <div className="flex items-center">
-                        <Star className="h-4 w-4 mr-1" />
-                        {article.citations} citations
-                      </div>
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-1" />
-                        DOI: {article.doi}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div className="text-sm text-gray-500">
-                    Published: {new Date(article.publishedDate).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </div>
-                  <div className="flex gap-3">
-                    <Button size="sm" variant="outline" className="hover:bg-indigo-50">
-                      <Eye className="h-4 w-4 mr-1" />
-                      View Abstract
-                    </Button>
-                    <Button size="sm" variant="outline" className="hover:bg-green-50">
-                      <Download className="h-4 w-4 mr-1" />
-                      Download PDF
-                    </Button>
-                    <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
-                      Read Full Article
-                    </Button>
-                  </div>
-                </div>
+          {articles.length === 0 ? (
+            <Card className="text-center py-12">
+              <CardContent>
+                <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Papers Published Yet</h3>
+                <p className="text-gray-600">Papers are currently being reviewed and will be published soon.</p>
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            articles.map((article, index) => (
+              <Card key={article.id} className="hover:shadow-lg transition-all duration-200">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Badge className={getTypeColor(article.category)} variant="outline">
+                          {getTypeIcon(article.category)}
+                          <span className="ml-1 capitalize">{getArticleType(article.category)}</span>
+                        </Badge>
+                        <Badge variant="secondary" className="bg-gray-100">
+                          {article.category}
+                        </Badge>
+                        <span className="text-sm text-gray-600">Pages {article.pages || "TBD"}</span>
+                      </div>
+                      
+                      <h3 className="text-xl font-semibold text-gray-900 mb-3 hover:text-indigo-600 cursor-pointer">
+                        {article.title}
+                      </h3>
+                      
+                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                        <div className="flex items-center">
+                          <Users className="h-4 w-4 mr-1" />
+                          {getAuthorNames(article)}
+                        </div>
+                        <div className="flex items-center">
+                          <Calendar className="h-4 w-4 mr-1" />
+                          {new Date(article.publishedDate).toLocaleDateString()}
+                        </div>
+                      </div>
+                      
+                      <p className="text-gray-700 text-sm leading-relaxed mb-4 line-clamp-3">
+                        {article.abstract}
+                      </p>
+                      
+                      <div className="flex items-center gap-6 text-sm text-gray-600">
+                        <div className="flex items-center">
+                          <Download className="h-4 w-4 mr-1" />
+                          {(article.downloads || 0).toLocaleString()} downloads
+                        </div>
+                        <div className="flex items-center">
+                          <Star className="h-4 w-4 mr-1" />
+                          {article.citations || 0} citations
+                        </div>
+                        <div className="flex items-center">
+                          <Eye className="h-4 w-4 mr-1" />
+                          {(article.views || 0).toLocaleString()} views
+                        </div>
+                        {article.doi && (
+                          <div className="flex items-center">
+                            <Clock className="h-4 w-4 mr-1" />
+                            DOI: {article.doi}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                    <div className="text-sm text-gray-500">
+                      Published: {new Date(article.publishedDate).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </div>
+                    <div className="flex gap-3">
+                      <Button size="sm" variant="outline" className="hover:bg-indigo-50">
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Abstract
+                      </Button>
+                      <Button size="sm" variant="outline" className="hover:bg-green-50">
+                        <Download className="h-4 w-4 mr-1" />
+                        Download PDF
+                      </Button>
+                      <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700" asChild>
+                        <a href={`/article/${article.id}`}>
+                          Read Full Paper
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Issue Information */}
@@ -293,20 +340,24 @@ export default function CurrentIssuePage() {
                 <h4 className="font-semibold mb-2">Publication Details</h4>
                 <ul className="space-y-1 text-sm text-gray-600">
                   <li><strong>ISSN:</strong> 2234-5678 (Online)</li>
-                  <li><strong>Volume:</strong> 15</li>
-                  <li><strong>Issue:</strong> 2</li>
-                  <li><strong>Publication Date:</strong> June 2025</li>
-                  <li><strong>Pages:</strong> 1-52</li>
+                  <li><strong>Volume:</strong> {issue.number || 1}</li>
+                  <li><strong>Issue:</strong> {issue.number || 1}</li>
+                  <li><strong>Publication Date:</strong> {new Date(issue.publishedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</li>
+                  <li><strong>Papers:</strong> {articles.length}</li>
+                  {issue.specialIssue && <li><strong>Special Issue:</strong> Yes</li>}
+                  {issue.guestEditors && <li><strong>Guest Editors:</strong> {issue.guestEditors}</li>}
                 </ul>
               </div>
               <div>
-                <h4 className="font-semibold mb-2">Special Focus</h4>
+                <h4 className="font-semibold mb-2">About This Issue</h4>
                 <p className="text-sm text-gray-600 mb-2">
-                  This issue highlights breakthrough research in digital health technologies and their clinical applications.
+                  {issue.description || "This issue features breakthrough research in various fields of medical and health sciences."}
                 </p>
-                <p className="text-sm text-gray-600">
-                  Featured topics include AI in healthcare, IoT medical devices, and blockchain applications in health informatics.
-                </p>
+                {articles.length > 0 && (
+                  <p className="text-sm text-gray-600">
+                    Topics covered include: {Array.from(new Set(articles.map(a => a.category))).join(", ")}.
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>

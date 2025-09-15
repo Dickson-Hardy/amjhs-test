@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { normalizeStatus } from "@/lib/status"
 import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { RouteGuard } from "@/components/route-guard"
@@ -118,9 +119,10 @@ const getPriorityColor = (priority: string) => {
 }
 
 const getSubmissionProgress = (status: string): number => {
-  switch (status) {
+  const norm = normalizeStatus(status) || status
+  switch (norm) {
     case "submitted": return 25
-    case "technical_check": return 40
+    case "editorial_assistant_review": return 40
     case "under_review": return 60
     case "revision_requested": return 75
     case "accepted": return 95
@@ -132,10 +134,10 @@ const getSubmissionProgress = (status: string): number => {
 
 const getSubmissionPriority = (status: string, submittedDate: string): "high" | "medium" | "low" => {
   const daysSinceSubmission = Math.floor((Date.now() - new Date(submittedDate).getTime()) / (1000 * 60 * 60 * 24))
-  
-  if (status === "revision_requested") return "high"
-  if (status === "technical_check" && daysSinceSubmission > 30) return "high"
-  if (status === "under_review" && daysSinceSubmission > 60) return "high"
+  const norm = normalizeStatus(status) || status
+  if (norm === "revision_requested") return "high"
+  if (norm === "editorial_assistant_review" && daysSinceSubmission > 30) return "high"
+  if (norm === "under_review" && daysSinceSubmission > 60) return "high"
   if (daysSinceSubmission > 30) return "medium"
   return "low"
 }
@@ -184,7 +186,7 @@ export default function SubmissionsPage() {
           ...sub,
           progress: getSubmissionProgress(sub.status),
           priority: getSubmissionPriority(sub.status, sub.submittedDate),
-          actionRequired: sub.status === "revision_requested" || sub.status === "technical_check",
+          actionRequired: (normalizeStatus(sub.status) || sub.status) === "revision_requested" || (normalizeStatus(sub.status) || sub.status) === "editorial_assistant_review",
         }))
         
         setSubmissions(enhancedSubmissions)
@@ -192,7 +194,7 @@ export default function SubmissionsPage() {
         // Calculate stats
         const newStats = {
           total: enhancedSubmissions.length,
-          pending: enhancedSubmissions.filter((s: any) => s.status === 'submitted' || s.status === 'technical_check').length,
+          pending: enhancedSubmissions.filter((s: any) => s.status === 'submitted' || (normalizeStatus(s.status) || s.status) === 'editorial_assistant_review').length,
           underReview: enhancedSubmissions.filter((s: any) => s.status === 'under_review').length,
           published: enhancedSubmissions.filter((s: any) => s.status === 'published').length,
           rejected: enhancedSubmissions.filter((s: any) => s.status === 'rejected').length,
@@ -246,29 +248,31 @@ export default function SubmissionsPage() {
     
     // Status filter
     if (statusFilter !== "all") {
-      if (statusFilter === "pending" && !["submitted", "technical_check"].includes(submission.status)) {
+      const normStatus = normalizeStatus(submission.status) || submission.status
+      if (statusFilter === "pending" && !["submitted", "editorial_assistant_review"].includes(normStatus)) {
         return false
       }
-      if (statusFilter === "review" && submission.status !== "under_review") {
+      if (statusFilter === "review" && normStatus !== "under_review") {
         return false
       }
       if (statusFilter === "action" && !submission.actionRequired) {
         return false
       }
-      if (statusFilter !== "pending" && statusFilter !== "review" && statusFilter !== "action" && submission.status !== statusFilter) {
+      if (statusFilter !== "pending" && statusFilter !== "review" && statusFilter !== "action" && normStatus !== statusFilter) {
         return false
       }
     }
     
     // URL filter
     if (activeFilter !== "all") {
-      if (activeFilter === "revision_requested" && submission.status !== "revision_requested") {
+      const normStatus2 = normalizeStatus(submission.status) || submission.status
+      if (activeFilter === "revision_requested" && normStatus2 !== "revision_requested") {
         return false
       }
-      if (activeFilter === "published" && !["published", "accepted"].includes(submission.status)) {
+      if (activeFilter === "published" && !["published", "accepted"].includes(normStatus2)) {
         return false
       }
-      if (activeFilter !== "revision_requested" && activeFilter !== "published" && submission.status !== activeFilter) {
+      if (activeFilter !== "revision_requested" && activeFilter !== "published" && normStatus2 !== activeFilter) {
         return false
       }
     }

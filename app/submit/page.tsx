@@ -427,7 +427,7 @@ function SubmitPageContent() {
           toast({
             variant: "destructive",
             title: "Profile Incomplete",
-            description: `Your profile is only ${eligibilityData.eligibility.score}% complete. You need at least 80% to submit articles.`,
+            description: `Your profile is only ${eligibilityData.eligibility.score}% complete. You need at least 80% to submit research papers.`,
           })
           return
         }
@@ -521,8 +521,8 @@ function SubmitPageContent() {
 
       if (result.success) {
         toast({
-          title: "Article Submitted Successfully!",
-          description: "Your article has been submitted for review. You will receive a confirmation email shortly.",
+          title: "Research Paper Submitted Successfully!",
+          description: "Your research paper has been submitted for review. You will receive a confirmation email shortly.",
         })
         // Redirect to success page or dashboard
         router.push(`/dashboard?submitted=true&articleId=${result.article?.id}`)
@@ -579,7 +579,7 @@ function SubmitPageContent() {
           <AlertCircle className="h-16 w-16 text-blue-600 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-800 mb-4">Authentication Required</h1>
           <p className="text-gray-600 mb-6">
-            You need to be logged in to submit an article. Please create an account or sign in to continue.
+            You need to be logged in to submit a research paper. Please create an account or sign in to continue.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button asChild>
@@ -595,7 +595,7 @@ function SubmitPageContent() {
   }
 
   const steps = [
-    { number: 1, title: "Article Information", description: "process.env.AUTH_TOKEN_PREFIX + ' 'details about your submission" },
+    { number: 1, title: "Research Paper Information", description: "Basic details about your submission" },
     { number: 2, title: "Authors & Affiliations", description: "Author information and institutional details" },
     { number: 3, title: "Recommended Reviewers", description: "Suggest qualified reviewers for your manuscript" },
     { number: 4, title: "Files & Documents", description: "Upload your manuscript and supporting files" },
@@ -662,7 +662,7 @@ function SubmitPageContent() {
       <div className="container mx-auto px-4 max-w-4xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Submit Your Article</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Submit Your Research Paper</h1>
           <p className="text-gray-600">Share your research with the global academic community</p>
         </div>
 
@@ -678,7 +678,7 @@ function SubmitPageContent() {
                 <div className="text-orange-700 space-y-3">
                   <p>
                     Your profile is only <span className="font-bold">{profileCompleteness}% complete</span>. 
-                    You need at least 80% profile completion to submit articles.
+                    You need at least 80% profile completion to submit research papers.
                   </p>
                   
                   <div className="bg-orange-100 p-4 rounded-lg border border-orange-200">
@@ -784,7 +784,7 @@ function SubmitPageContent() {
             <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-700 mb-2">Submission Temporarily Disabled</h3>
             <p className="text-gray-600">
-              Please complete your profile to enable article submissions. This ensures we have all 
+              Please complete your profile to enable research paper submissions. This ensures we have all 
               necessary information for the peer review process and author communications.
             </p>
           </div>
@@ -1478,7 +1478,7 @@ function SubmitPageContent() {
                   }
                 >
                   <FileText className="h-4 w-4 mr-2" />
-                  {isSubmitting ? "Submitting..." : "Submit Article"}
+                  {isSubmitting ? "Submitting..." : "Submit Research Paper"}
                 </Button>
               )}
             </div>

@@ -50,10 +50,10 @@ export default function ArticlePage() {
         if (data.success) {
           setArticle(data.article)
         } else {
-          setError(data.error || "Article not found")
+          setError(data.error || "Paper not found")
         }
       } catch (error) {
-        setError("Failed to load article")
+        setError("Failed to load paper")
       } finally {
         setLoading(false)
       }
@@ -103,7 +103,7 @@ export default function ArticlePage() {
       <div className="min-h-screen bg-gray-50 py-8 flex items-center justify-center">
         <div className="text-center">
           <BookOpen className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-600">Loading article...</p>
+          <p className="text-gray-600">Loading paper...</p>
         </div>
       </div>
     )
@@ -253,7 +253,7 @@ export default function ArticlePage() {
             {/* Article Details */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Article Details</CardTitle>
+                <CardTitle className="text-lg">Paper Details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {article.doi && (
@@ -297,11 +297,11 @@ export default function ArticlePage() {
             {/* Related Articles */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Related Articles</CardTitle>
+                <CardTitle className="text-lg">Related Papers</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-gray-600">
-                  Related articles will be displayed here based on keywords and category.
+                  Related papers will be displayed here based on keywords and category.
                 </p>
               </CardContent>
             </Card>

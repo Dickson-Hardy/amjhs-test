@@ -446,7 +446,7 @@ export default function CurrentIssueManagementPage() {
                       {currentIssueArticles.length > 0 && (
                         <div>
                           <h5 className="font-semibold text-blue-900 text-sm uppercase tracking-wide mb-2">
-                            FEATURED ARTICLES
+                            FEATURED RESEARCH PAPERS
                           </h5>
                           <ul className="space-y-1 text-sm">
                             {currentIssueArticles.slice(0, 3).map((article) => (

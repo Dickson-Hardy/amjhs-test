@@ -65,7 +65,7 @@ export default function ModernAdminDashboard() {
   }
 
   const handleViewSystemLogs = () => {
-    router.push('/admin/system-logs')
+    router.push('/admin/system')
   }
 
   const handleDatabaseBackup = () => {

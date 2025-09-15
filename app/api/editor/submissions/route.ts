@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { logError } from "@/lib/logger"
 import { db } from "@/lib/db"
 import { submissions, articles, users } from "@/lib/db/schema"
+import { normalizeStatus } from "@/lib/status"
 import { eq, and, or, sql, desc } from "drizzle-orm"
 
 export async function GET(request: NextRequest) {
@@ -32,7 +33,8 @@ export async function GET(request: NextRequest) {
 
     // Filter by status if provided
     if (status) {
-      whereConditions.push(eq(submissions.status, status))
+      const normalized = normalizeStatus(status) || status
+      whereConditions.push(eq(submissions.status, normalized))
     }
 
     // Filter by category if provided
@@ -209,10 +211,12 @@ export async function GET(request: NextRequest) {
     const total = Number(totalResults[0]?.count) || 0
 
     // Format submissions for response
-    const formattedSubmissions = results.map(submission => ({
+    const formattedSubmissions = results.map(submission => {
+      const currentStatus = normalizeStatus(submission.submissionStatus) || submission.submissionStatus
+      return ({
       id: submission.submissionId,
       articleId: submission.articleId,
-      status: submission.submissionStatus,
+      status: currentStatus,
       title: submission.title || 'Untitled Submission',
       abstract: submission.abstract ? submission.abstract.substring(0, 200) + '...' : '',
       category: submission.category || 'Not specified',
@@ -252,15 +256,15 @@ export async function GET(request: NextRequest) {
       createdAt: submission.submissionCreatedAt,
       updatedAt: submission.submissionUpdatedAt,
       
-      // Workflow tracking
-      statusHistory: submission.statusHistory || [],
-      currentStage: submission.submissionStatus,
+  // Workflow tracking
+  statusHistory: submission.statusHistory || [],
+  currentStage: currentStatus,
       
       // Quick actions available
-      availableActions: getAvailableActions(submission.submissionStatus, submission.editorId, session.user.id),
+  availableActions: getAvailableActions(currentStatus as string, submission.editorId, session.user.id),
       
       // Priority and urgency indicators
-      priority: calculatePriority(submission.submittedAt, submission.submissionStatus),
+  priority: calculatePriority(submission.submittedAt, currentStatus as string),
       daysSinceSubmission: submission.submittedAt || submission.submissionCreatedAt 
         ? Math.floor((Date.now() - new Date(submission.submittedAt || submission.submissionCreatedAt!).getTime()) / (1000 * 60 * 60 * 24))
         : 0,
@@ -268,7 +272,7 @@ export async function GET(request: NextRequest) {
       // DOI information
       doi: submission.doi,
       hasDoi: !!submission.doi
-    }))
+    })})
 
     // Get summary statistics for the current filter
     const stats = await getEditorStats(session.user.id, filter)

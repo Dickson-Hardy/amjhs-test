@@ -29,7 +29,7 @@ export function ProfileCompletionAlert({
             <div>
               <p className="font-medium text-green-800">Profile Complete!</p>
               <p className="text-sm text-green-700">
-                Your profile is {profileCompleteness}% complete. You can now submit articles.
+                Your profile is {profileCompleteness}% complete. You can now submit research papers.
               </p>
             </div>
             <Button 
@@ -38,7 +38,7 @@ export function ProfileCompletionAlert({
               onClick={() => router.push('/author/submit')}
               className="ml-auto border-green-300 text-green-700 hover:bg-green-100"
             >
-              Submit Article
+              Submit Research Paper
             </Button>
           </div>
         </CardContent>

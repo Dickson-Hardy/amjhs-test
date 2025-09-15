@@ -235,6 +235,7 @@ export function Header() {
                       ) : (
                         <>
                           <button
+                            type="button"
                             onClick={() => toggleExpandedItem(item.title)}
                             className="flex items-center justify-between w-full px-3 py-2 text-sm font-semibold text-gray-800 hover:text-blue-600 hover:bg-blue-50 rounded-md border-b pb-2"
                           >

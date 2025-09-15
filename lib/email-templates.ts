@@ -2604,7 +2604,7 @@ Advances in Medicine and Health Science Journal`
                 
                 <a href="${process.env.NEXTAUTH_URL || 'https://amhsj.org'}/articles" 
                    style="display: inline-block; background: ${AMHSJ_COLORS.secondary}; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px;">
-                  📖 Browse Articles
+                  📖 Browse Research Papers
                 </a>
               </div>
               

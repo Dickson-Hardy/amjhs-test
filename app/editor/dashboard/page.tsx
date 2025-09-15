@@ -21,6 +21,7 @@ import {
   Calendar,
   Filter
 } from "lucide-react"
+import { normalizeStatus } from "@/lib/status"
 
 interface EditorStats {
   totalSubmissions: number
@@ -103,8 +104,9 @@ export default function EditorDashboard() {
   }
 
   const getPriority = (status: string, daysInReview: number): "high" | "medium" | "low" => {
-    if (status === "pending_decision" || daysInReview > 30) return "high"
-    if (status === "technical_check" || daysInReview > 14) return "medium"
+    const norm = normalizeStatus(status) || status
+    if (norm === "associate_editor_review" || daysInReview > 30) return "high"
+    if (norm === "editorial_assistant_review" || daysInReview > 14) return "medium"
     return "low"
   }
 

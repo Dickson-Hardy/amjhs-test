@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { normalizeStatus } from "@/lib/status"
+import { logError } from "@/lib/logger"
 import { articles, users } from "@/lib/db/schema"
-import { eq, and, desc } from "drizzle-orm"
+import { eq, and, desc, inArray } from "drizzle-orm"
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,28 +33,30 @@ export async function GET(request: NextRequest) {
         abstract: articles.abstract,
         category: articles.category,
         status: articles.status,
-        submitted_date: articles.submitted_date,
-        author_id: articles.author_id,
-        co_authors: articles.co_authors,
-        reviewer_ids: articles.reviewer_ids,
+  submitted_date: articles.submittedDate,
+  author_id: articles.authorId,
+  co_authors: articles.coAuthors,
+  reviewer_ids: articles.reviewerIds,
         views: articles.views,
         metadata: articles.metadata
       })
       .from(articles)
       .where(eq(articles.category, userSection))
-      .orderBy(desc(articles.submitted_date))
+  .orderBy(desc(articles.submittedDate))
       .limit(50)
 
     // Get author details for each submission
-    const authorIds = submissions.map(s => s.author_id).filter(Boolean)
-    const authors = await db
-      .select({
-        id: users.id,
-        name: users.name,
-        email: users.email
-      })
-      .from(users)
-      .where(eq(users.id, authorIds[0])) // This would need to be improved for multiple authors
+    const authorIds = submissions.map(s => s.author_id).filter((v): v is string => typeof v === "string")
+    const authors = authorIds.length > 0
+      ? await db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email
+          })
+          .from(users)
+          .where(inArray(users.id, authorIds))
+      : []
 
     const authorMap = authors.reduce((acc, author) => {
       acc[author.id] = author
@@ -61,9 +65,11 @@ export async function GET(request: NextRequest) {
 
     // Transform submissions to match the expected format
     const transformedSubmissions = submissions.map(submission => {
-      const author = authorMap[submission.author_id] || { name: "Unknown Author", email: "" }
+  const authorKey = (submission.author_id as string) || "unknown"
+  const author = authorMap[authorKey] || { name: "Unknown Author", email: "" }
       const submittedDate = submission.submitted_date ? new Date(submission.submitted_date) : new Date()
       const daysSinceSubmission = Math.floor((Date.now() - submittedDate.getTime()) / (1000 * 60 * 60 * 24))
+      const status = normalizeStatus(submission.status as string) || submission.status || "submitted"
       
       return {
         id: submission.id,
@@ -71,12 +77,12 @@ export async function GET(request: NextRequest) {
         author: author.name,
         coAuthors: submission.co_authors || [],
         submittedDate: submittedDate.toISOString().split('T')[0],
-        status: submission.status || "submitted",
+        status: status,
         priority: daysSinceSubmission > 14 ? 'high' : daysSinceSubmission > 7 ? 'medium' : 'low',
         reviewers: submission.reviewer_ids || [],
         daysSinceSubmission,
         qualityScore: 8.5, // Would calculate from review scores when available
-        needsDecision: submission.status === "reviewer_decision_received",
+        needsDecision: status === "associate_editor_review" || status === "under_review",
         abstract: submission.abstract || "Abstract not available"
       }
     })
@@ -84,7 +90,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(transformedSubmissions)
 
   } catch (error) {
-    logger.error("Error fetching section editor submissions:", error)
+    logError(error as Error, { endpoint: "/api/section-editor/submissions", action: "fetchSectionEditorSubmissions" })
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
