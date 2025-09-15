@@ -19,7 +19,9 @@ export function useSessionRefresh() {
       logger.info("Refreshing session...")
       await update()
     } catch (error) {
-      logger.error("Failed to refresh session:", error)
+      logger.error("Failed to refresh session", {
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }, [update])
 
@@ -52,7 +54,7 @@ export function useSessionRefresh() {
     if (status === "authenticated") {
       const interval = setInterval(() => {
         refreshSession()
-      }, 60000) // Refresh every minute
+      }, 15 * 60 * 1000) // Refresh every 15 minutes instead of every minute
 
       return () => clearInterval(interval)
     }

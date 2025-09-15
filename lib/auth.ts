@@ -14,6 +14,8 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours - only update session every 24 hours
   },
   providers: [
     CredentialsProvider({
@@ -73,6 +75,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = user.role
         token.lastUpdated = Date.now()
+        // Log actual session creation only when user is present
+        logAuth(`New session created for user ${user.email}`, user.id, 'session_create')
       }
       
       // Force refresh user data from database if triggered
@@ -82,7 +86,7 @@ export const authOptions: NextAuthOptions = {
           if (dbUser) {
             token.role = dbUser.role
             token.lastUpdated = Date.now()
-            logAuth(`process.env.AUTH_TOKEN_PREFIXrefreshed for user ${token.sub}`, token.sub, 'token_refresh')
+            logAuth(`Token refreshed for user ${token.sub}`, token.sub, 'token_refresh')
           }
         } catch (error) {
           logError(error as Error, { context: 'token_refresh' })
@@ -95,9 +99,6 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.sub!
         session.user.role = token.role as string
-        
-        // Debug logging
-        logAuth(`Session created for ${session.user.email}`, session.user.id, 'session_create')
       }
       return session
     },

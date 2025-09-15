@@ -15,7 +15,7 @@ import {
   reviewInvitations,
   manuscript_screenings
 } from "./db/schema"
-import { eq, and, sql, inArray, not } from "drizzle-orm"
+import { eq, and, or, sql, inArray, not } from "drizzle-orm"
 import { sendReviewInvitation, sendWorkflowNotification, sendEmail } from "./email-hybrid"
 import { emailTemplates } from "./email-templates"
 import { v4 as uuidv4 } from "uuid"
@@ -2412,3 +2412,102 @@ export const workflowManager = new EditorialWorkflow()
 export const reviewerAssignmentService = workflowManager.reviewerAssignment
 export const articleSubmissionService = workflowManager.submission
 export const reviewManagementService = workflowManager.review
+
+/**
+ * Utility function to check if a user can access a specific manuscript
+ * Based on their role and current workflow status
+ */
+export async function canUserAccessManuscript(
+  manuscriptId: string,
+  userId: string,
+  userRole: string
+): Promise<boolean> {
+  try {
+    // Admin has access to everything
+    if (userRole === "admin") {
+      return true
+    }
+
+    // Get manuscript data with submission status
+    const [manuscriptData] = await db
+      .select({
+        articleId: articles.id,
+        authorId: articles.authorId,
+        editorId: articles.editorId,
+        status: articles.status,
+        submissionId: submissions.id,
+        submissionStatus: submissions.status
+      })
+      .from(articles)
+      .leftJoin(submissions, eq(submissions.articleId, articles.id))
+      .where(eq(articles.id, manuscriptId))
+      .limit(1)
+
+    if (!manuscriptData) {
+      return false
+    }
+
+    // Author can access their own manuscripts
+    if (userRole === "author" && manuscriptData.authorId === userId) {
+      return true
+    }
+
+    // Editorial assistants can access manuscripts in their workflow queue
+    if (userRole === "editorial-assistant") {
+      const allowedStatuses = [
+        "submitted",
+        "editorial_assistant_review", 
+        "associate_editor_assignment"
+      ]
+      return allowedStatuses.includes(manuscriptData.submissionStatus || "")
+    }
+
+    // Associate editors can access manuscripts assigned to them
+    if (userRole === "editor") {
+      // Check direct assignment
+      if (manuscriptData.editorId === userId) {
+        return true
+      }
+
+      // Check editor assignments table
+      const [assignment] = await db
+        .select()
+        .from(editorAssignments)
+        .where(and(
+          eq(editorAssignments.articleId, manuscriptId),
+          eq(editorAssignments.editorId, userId),
+          or(
+            eq(editorAssignments.status, "pending"),
+            eq(editorAssignments.status, "active"),
+            eq(editorAssignments.status, "completed")
+          )
+        ))
+        .limit(1)
+
+      return !!assignment
+    }
+
+    // Managing editors and editor-in-chief have broader access
+    if (["managing-editor", "editor-in-chief", "section-editor"].includes(userRole)) {
+      return true
+    }
+
+    // Production editors can access manuscripts in production phase
+    if (userRole === "production-editor") {
+      const productionStatuses = ["accepted", "in_production", "ready_for_publication"]
+      return productionStatuses.includes(manuscriptData.status || "")
+    }
+
+    return false
+
+  } catch (error) {
+    logger.error("Error checking manuscript access", { 
+      error, 
+      operation: 'canUserAccessManuscript',
+      manuscriptId,
+      userId,
+      userRole 
+    })
+    return false
+  }
+}

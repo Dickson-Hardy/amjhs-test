@@ -45,7 +45,21 @@ async function loadPublicJournalInfo() {
     
     let settings = null
     if (settingsResult.length > 0) {
-      settings = JSON.parse((settingsResult[0] as any).settings_data)
+      const settingsData = (settingsResult[0] as any).settings_data
+      try {
+        // Check if it's already an object or needs parsing
+        if (typeof settingsData === 'string') {
+          settings = JSON.parse(settingsData)
+        } else if (typeof settingsData === 'object' && settingsData !== null) {
+          settings = settingsData
+        }
+      } catch (parseError) {
+        logger.error("Error parsing journal settings data", {
+          error: parseError instanceof Error ? parseError.message : String(parseError),
+          data: typeof settingsData === 'string' ? settingsData.substring(0, 100) : String(settingsData)
+        })
+        settings = null
+      }
     }
     
     // Get impact factor and journal metrics from database if available
@@ -104,7 +118,13 @@ async function loadPublicJournalInfo() {
       establishedYear: metrics?.established_year || null,
       
       // Subject areas - only from database
-      subjectAreas: metrics?.subject_areas ? JSON.parse(metrics.subject_areas) : null,
+      subjectAreas: metrics?.subject_areas ? (() => {
+        try {
+          return typeof metrics.subject_areas === 'string' ? JSON.parse(metrics.subject_areas) : metrics.subject_areas
+        } catch {
+          return null
+        }
+      })() : null,
       
       // Statistics
       stats: {
@@ -123,7 +143,13 @@ async function loadPublicJournalInfo() {
       email: settings?.email || null,
       
       // Indexing - only from database
-      indexing: settings?.indexing ? JSON.parse(settings.indexing) : null
+      indexing: settings?.indexing ? (() => {
+        try {
+          return typeof settings.indexing === 'string' ? JSON.parse(settings.indexing) : settings.indexing
+        } catch {
+          return null
+        }
+      })() : null
     }
     
   } catch (error) {
