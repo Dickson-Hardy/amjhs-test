@@ -21,7 +21,8 @@ import {
   Shield,
   Settings,
   Bell,
-  Mail
+  Mail,
+  Download
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -105,6 +106,27 @@ export default function EditorialAssistantDashboard() {
 
   const handleDeadlineManagement = () => {
     router.push(`/editorial-assistant/deadlines`)
+  }
+
+  const handleDownloadManuscript = async (manuscriptId: string) => {
+    try {
+      const response = await fetch(`/api/manuscripts/${manuscriptId}/download`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to download manuscript')
+      }
+      
+      const data = await response.json()
+      
+      if (data.success && data.downloadUrl) {
+        window.open(data.downloadUrl, '_blank')
+      } else {
+        throw new Error(data.message || 'Download failed')
+      }
+    } catch (error) {
+      console.error('Download error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to download manuscript')
+    }
   }
 
   const filteredManuscripts = manuscripts.filter(manuscript => {
@@ -337,6 +359,14 @@ export default function EditorialAssistantDashboard() {
                       </div>
                       <div className="flex gap-2">
                         <Button
+                          onClick={() => handleDownloadManuscript(manuscript.id)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                        <Button
                           onClick={() => handleInitialScreening(manuscript.id)}
                           className="bg-blue-600 hover:bg-blue-700"
                         >
@@ -382,6 +412,14 @@ export default function EditorialAssistantDashboard() {
                       </div>
                       <div className="flex gap-2">
                         <Button
+                          onClick={() => handleDownloadManuscript(manuscript.id)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                        <Button
                           onClick={() => handleInitialScreening(manuscript.id)}
                           variant="outline"
                         >
@@ -426,6 +464,14 @@ export default function EditorialAssistantDashboard() {
                         </p>
                       </div>
                       <div className="flex gap-2">
+                        <Button
+                          onClick={() => handleDownloadManuscript(manuscript.id)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
                         <Button
                           onClick={() => handleAssociateEditorAssignment(manuscript.id)}
                           className="bg-purple-600 hover:bg-purple-700"

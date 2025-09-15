@@ -217,6 +217,51 @@ export default function ManuscriptScreeningPage() {
            screeningData.overallAssessment.trim().length > 0
   }
 
+  const handleDownloadManuscript = async () => {
+    try {
+      const response = await fetch(`/api/manuscripts/${submissionId}/download`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to download manuscript')
+      }
+      
+      const data = await response.json()
+      
+      if (data.success && data.downloadUrl) {
+        // Open download URL in new tab
+        window.open(data.downloadUrl, '_blank')
+        toast.success('Download started')
+      } else {
+        throw new Error(data.message || 'Download failed')
+      }
+    } catch (error) {
+      console.error('Download error:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to download manuscript')
+    }
+  }
+
+  const handleDownloadSupplementaryFile = async (filename: string) => {
+    try {
+      const response = await fetch(`/api/manuscripts/${submissionId}/download?file=${encodeURIComponent(filename)}`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to download file')
+      }
+      
+      const data = await response.json()
+      
+      if (data.success && data.downloadUrl) {
+        window.open(data.downloadUrl, '_blank')
+        toast.success(`${filename} download started`)
+      } else {
+        throw new Error(data.message || 'Download failed')
+      }
+    } catch (error) {
+      console.error('Download error:', error)
+      toast.error(error instanceof Error ? error.message : `Failed to download ${filename}`)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -425,7 +470,7 @@ export default function ManuscriptScreeningPage() {
                               Preview Manuscript
                             </Button>
                           )}
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" onClick={handleDownloadManuscript}>
                             <Download className="h-4 w-4 mr-2" />
                             Download
                           </Button>
@@ -717,7 +762,7 @@ export default function ManuscriptScreeningPage() {
                                   View
                                 </Button>
                               )}
-                              <Button variant="outline" size="sm">
+                              <Button variant="outline" size="sm" onClick={() => handleDownloadSupplementaryFile(file.filename)}>
                                 <Download className="h-4 w-4 mr-2" />
                                 Download
                               </Button>
