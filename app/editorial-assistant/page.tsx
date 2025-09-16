@@ -24,6 +24,7 @@ import {
   Mail,
   Download
 } from "lucide-react"
+import { ManuscriptPreview } from "@/components/manuscript-preview"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import RoleSwitcher from "@/components/role-switcher"
@@ -36,6 +37,16 @@ interface Manuscript {
   status: string
   submittedAt: string
   priority: "high" | "medium" | "low"
+  files?: {
+    id: string
+    name: string
+    url: string
+    type: string
+    size: number
+    mimeType?: string
+    uploadedAt?: string
+  }[]
+  submissionId?: string
 }
 
 interface ScreeningStats {
@@ -129,7 +140,7 @@ export default function EditorialAssistantDashboard() {
     }
   }
 
-  const filteredManuscripts = manuscripts.filter(manuscript => {
+  const filteredManuscripts = (manuscripts || []).filter(manuscript => {
     const matchesSearch = manuscript.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          manuscript.authors.some(author => author.toLowerCase().includes(searchTerm.toLowerCase()))
     const matchesStatus = statusFilter === "all" || manuscript.status === statusFilter
@@ -268,8 +279,15 @@ export default function EditorialAssistantDashboard() {
           </p>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-gray-600">Loading manuscripts...</span>
+            </div>
+          ) : (
+            <>
+              {/* Filters */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -310,13 +328,13 @@ export default function EditorialAssistantDashboard() {
           <Tabs defaultValue="initial-screening" className="w-full">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="initial-screening">
-                Initial Screening ({manuscripts.filter(m => m.status === "submitted").length})
+                Initial Screening ({manuscripts?.filter(m => m.status === "submitted").length || 0})
               </TabsTrigger>
               <TabsTrigger value="in-progress">
-                In Progress ({manuscripts.filter(m => m.status === "editorial_assistant_review").length})
+                In Progress ({manuscripts?.filter(m => m.status === "editorial_assistant_review").length || 0})
               </TabsTrigger>
               <TabsTrigger value="editor-assignment">
-                Editor Assignment ({manuscripts.filter(m => m.status === "associate_editor_assignment").length})
+                Editor Assignment ({manuscripts?.filter(m => m.status === "associate_editor_assignment").length || 0})
               </TabsTrigger>
               <TabsTrigger value="workflow-monitoring">
                 Workflow Monitoring
@@ -339,7 +357,7 @@ export default function EditorialAssistantDashboard() {
               {filteredManuscripts
                 .filter(m => m.status === "submitted")
                 .map((manuscript) => (
-                  <div key={manuscript.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                  <div key={manuscript.id} className="border rounded-lg p-4 hover:bg-gray-50 space-y-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
@@ -375,6 +393,18 @@ export default function EditorialAssistantDashboard() {
                         </Button>
                       </div>
                     </div>
+                    
+                    {/* Manuscript Preview */}
+                    {manuscript.files && manuscript.files.length > 0 && (
+                      <ManuscriptPreview
+                        manuscriptId={manuscript.id}
+                        submissionId={manuscript.submissionId || manuscript.id}
+                        title={manuscript.title}
+                        files={manuscript.files}
+                        userRole="editorial-assistant"
+                        className="border-t pt-4"
+                      />
+                    )}
                   </div>
                 ))}
             </TabsContent>
@@ -392,7 +422,7 @@ export default function EditorialAssistantDashboard() {
               {filteredManuscripts
                 .filter(m => m.status === "editorial_assistant_review")
                 .map((manuscript) => (
-                  <div key={manuscript.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                  <div key={manuscript.id} className="border rounded-lg p-4 hover:bg-gray-50 space-y-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
@@ -428,6 +458,18 @@ export default function EditorialAssistantDashboard() {
                         </Button>
                       </div>
                     </div>
+                    
+                    {/* Manuscript Preview */}
+                    {manuscript.files && manuscript.files.length > 0 && (
+                      <ManuscriptPreview
+                        manuscriptId={manuscript.id}
+                        submissionId={manuscript.submissionId || manuscript.id}
+                        title={manuscript.title}
+                        files={manuscript.files}
+                        userRole="editorial-assistant"
+                        className="border-t pt-4"
+                      />
+                    )}
                   </div>
                 ))}
             </TabsContent>
@@ -445,7 +487,7 @@ export default function EditorialAssistantDashboard() {
               {filteredManuscripts
                 .filter(m => m.status === "associate_editor_assignment")
                 .map((manuscript) => (
-                  <div key={manuscript.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                  <div key={manuscript.id} className="border rounded-lg p-4 hover:bg-gray-50 space-y-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
@@ -481,6 +523,18 @@ export default function EditorialAssistantDashboard() {
                         </Button>
                       </div>
                     </div>
+                    
+                    {/* Manuscript Preview */}
+                    {manuscript.files && manuscript.files.length > 0 && (
+                      <ManuscriptPreview
+                        manuscriptId={manuscript.id}
+                        submissionId={manuscript.submissionId || manuscript.id}
+                        title={manuscript.title}
+                        files={manuscript.files}
+                        userRole="editorial-assistant"
+                        className="border-t pt-4"
+                      />
+                    )}
                   </div>
                 ))}
             </TabsContent>
@@ -556,6 +610,8 @@ export default function EditorialAssistantDashboard() {
               </div>
             </TabsContent>
           </Tabs>
+            </>
+          )}
         </CardContent>
       </Card>
         </div>

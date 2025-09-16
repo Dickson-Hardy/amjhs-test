@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Loader2, FileText, Calendar, User, AlertCircle, ArrowLeft, CheckCircle2, XCircle, Download, Eye, Mail, Building, Globe, BookOpen, Tag, Clock, FileCheck, Shield, Search, Maximize2, Send, MessageSquare, Phone, ExternalLink, Users, Plus, Edit } from "lucide-react"
 import Link from "next/link"
 import { RouteGuard } from "@/components/route-guard"
+import { ManuscriptPreview } from "@/components/manuscript-preview"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
@@ -95,6 +96,25 @@ interface ScreeningData {
   overallAssessment: string
   identifiedIssues: string[]
   requiredRevisions: string[]
+}
+
+// Helper function to determine MIME type from filename
+function getMimeTypeFromFilename(filename: string): string {
+  const extension = filename.toLowerCase().split('.').pop() || ''
+  
+  const mimeTypes: { [key: string]: string } = {
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'txt': 'text/plain',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'svg': 'image/svg+xml'
+  }
+  
+  return mimeTypes[extension] || 'application/octet-stream'
 }
 
 export default function ManuscriptScreeningPage() {
@@ -439,49 +459,21 @@ export default function ManuscriptScreeningPage() {
 
               <TabsContent value="manuscript" className="space-y-6">
                 {submission.manuscript && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center">
-                        <Download className="h-5 w-5 mr-2" />
-                        Primary Manuscript File
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between p-4 border rounded-lg bg-blue-50">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-blue-100 rounded-lg">
-                            <FileText className="h-8 w-8 text-blue-600" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-blue-900">{submission.manuscript.filename}</p>
-                            <p className="text-sm text-blue-700">
-                              {(submission.manuscript.filesize / (1024 * 1024)).toFixed(2)} MB • 
-                              Uploaded {new Date(submission.manuscript.uploadedAt).toLocaleDateString()}
-                            </p>
-                            <p className="text-xs text-blue-600 mt-1">
-                              Primary manuscript document for review
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          {submission.manuscript.url && (
-                            <Button variant="default" size="sm" className="bg-blue-600 hover:bg-blue-700">
-                              <Eye className="h-4 w-4 mr-2" />
-                              Preview Manuscript
-                            </Button>
-                          )}
-                          <Button variant="outline" size="sm" onClick={handleDownloadManuscript}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            Open in New Tab
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ManuscriptPreview
+                    manuscriptId={submission.id}
+                    submissionId={submission.id}
+                    title={submission.title}
+                    files={[{
+                      id: 'main-manuscript',
+                      name: submission.manuscript.filename,
+                      url: submission.manuscript.url || '',
+                      type: 'manuscript',
+                      size: submission.manuscript.filesize,
+                      mimeType: getMimeTypeFromFilename(submission.manuscript.filename),
+                      uploadedAt: submission.manuscript.uploadedAt
+                    }]}
+                    userRole="editorial-assistant"
+                  />
                 )}
 
                 {submission.content && (

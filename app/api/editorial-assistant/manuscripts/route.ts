@@ -79,12 +79,22 @@ export async function GET(request: NextRequest) {
       
       transformedManuscripts.push({
         id: submission.id,
+        submissionId: submission.id,
         title: article?.title || "Untitled",
         authors: author ? [author.name] : ["Unknown Author"],
         category: article?.category || "Uncategorized", 
         status: submission.status,
         submittedAt: submission.createdAt?.toISOString() || new Date().toISOString(),
-        priority: determinePriority(submission.createdAt, submission.status)
+        priority: determinePriority(submission.createdAt, submission.status),
+        files: article?.files ? (article.files as any[]).map((file, index) => ({
+          id: file.fileId || file.id || `file-${index}`,
+          name: file.name || `document-${index + 1}`,
+          url: file.url || '',
+          type: file.type || 'manuscript',
+          size: file.size || 0,
+          mimeType: getMimeType(file.name || ''),
+          uploadedAt: article.createdAt?.toISOString()
+        })) : []
       })
     }
 
@@ -110,4 +120,22 @@ function determinePriority(createdAt: Date | null, status: string): "high" | "me
   if (daysSinceSubmission > 7) return "high"
   if (daysSinceSubmission > 3) return "medium"
   return "low"
+}
+
+function getMimeType(filename: string): string {
+  const extension = filename.toLowerCase().split('.').pop() || ''
+  
+  const mimeTypes: { [key: string]: string } = {
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'txt': 'text/plain',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'svg': 'image/svg+xml'
+  }
+  
+  return mimeTypes[extension] || 'application/octet-stream'
 }
