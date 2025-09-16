@@ -22,6 +22,26 @@ import { FileUploadSection } from "@/components/file-upload-section"
 import { FormValidationIndicator } from "@/components/form-validation-indicator"
 import { validateCurrentStep, type SubmissionFormData } from "@/lib/form-validation"
 
+// Profile interface based on API response structure
+interface UserProfile {
+  id: string
+  name?: string
+  email: string
+  role: string
+  affiliation?: string
+  bio?: string
+  orcid?: string
+  orcidVerified?: boolean
+  expertise?: string[]
+  specializations?: string[]
+  researchInterests?: string[]
+  languagesSpoken?: string[]
+  profileCompleteness: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 function SubmitPageContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -31,7 +51,7 @@ function SubmitPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submissionError, setSubmissionError] = useState("")
   const [profileLoading, setProfileLoading] = useState(true)
-  const [profileData, setProfileData] = useState<unknown>(null)
+  const [profileData, setProfileData] = useState<UserProfile | null>(null)
   const [profileCompleteness, setProfileCompleteness] = useState(0)
   const [uploadedFiles, setUploadedFiles] = useState<{[key: string]: File[]}>({
     manuscript: [],
@@ -696,7 +716,7 @@ function SubmitPageContent() {
                           <span>Institutional affiliation</span>
                         </div>
                       )}
-                      {(!profileData?.bio || profileData.bio.length < 50) && (
+                      {((profileData?.bio?.length ?? 0) < 50) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Professional biography (50+ chars)</span>
@@ -708,25 +728,25 @@ function SubmitPageContent() {
                           <span>ORCID identifier</span>
                         </div>
                       )}
-                      {(!profileData?.expertise || profileData.expertise.length === 0) && (
+                      {((profileData?.expertise?.length ?? 0) === 0) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Areas of expertise</span>
                         </div>
                       )}
-                      {(!profileData?.specializations || profileData.specializations.length === 0) && (
+                      {((profileData?.specializations?.length ?? 0) === 0) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Academic specializations</span>
                         </div>
                       )}
-                      {(!profileData?.researchInterests || profileData.researchInterests.length === 0) && (
+                      {((profileData?.researchInterests?.length ?? 0) === 0) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Research interests</span>
                         </div>
                       )}
-                      {(!profileData?.languagesSpoken || profileData.languagesSpoken.length === 0) && (
+                      {((profileData?.languagesSpoken?.length ?? 0) === 0) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Languages spoken</span>

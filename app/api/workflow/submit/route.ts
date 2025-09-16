@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server"
 import { z } from "zod"
 import * as crypto from "crypto"
-import { requireAuth, ROLES, Role } from "@/lib/api-utils"
-import {
+import { 
+  requireAuth, 
+  ROLES, 
+  Role,
   createApiResponse,
   createErrorResponse,
   validateRequest,
@@ -65,7 +67,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   
   try {
     // Require authentication for workflow submission
-    const session = await requireAuth(request, [ROLES.AUTHOR, ROLES.ASSOCIATE_EDITOR, ROLES.ADMIN])
+    const session = await requireAuth(request, [ROLES.AUTHOR, "editor", ROLES.ADMIN])
     
     logger.api("Submitting article to workflow", { 
       requestId, 
@@ -174,7 +176,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     logger.api("Article submitted to workflow successfully", { 
       requestId, 
       submissionId: result.submissionId, 
-      articleId: result.article?.id 
+      articleId: (result.article as any)?.id 
     })
 
     return createApiResponse(
@@ -234,7 +236,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
 
     // Check permissions - user can only see their own submissions unless they're admin/editor
-    if (![ROLES.ADMIN, ROLES.ASSOCIATE_EDITOR].includes(user.role as Role) && 
+    if (user.role !== ROLES.ADMIN && user.role !== "editor" && 
         submission.authorId !== user.id) {
       logger.security("Unauthorized workflow status access attempt", {
         requestId,

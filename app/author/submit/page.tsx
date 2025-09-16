@@ -22,6 +22,26 @@ import { FileUploadSection } from "@/components/file-upload-section"
 import { FormValidationIndicator } from "@/components/form-validation-indicator"
 import { validateCurrentStep, type SubmissionFormData } from "@/lib/form-validation"
 
+// Profile interface based on API response structure
+interface UserProfile {
+  id: string
+  name?: string
+  email: string
+  role: string
+  affiliation?: string
+  bio?: string
+  orcid?: string
+  orcidVerified?: boolean
+  expertise?: string[]
+  specializations?: string[]
+  researchInterests?: string[]
+  languagesSpoken?: string[]
+  profileCompleteness: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 function SubmitPageContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -31,7 +51,7 @@ function SubmitPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submissionError, setSubmissionError] = useState("")
   const [profileLoading, setProfileLoading] = useState(true)
-  const [profileData, setProfileData] = useState<unknown>(null)
+  const [profileData, setProfileData] = useState<UserProfile | null>(null)
   const [profileCompleteness, setProfileCompleteness] = useState(0)
   const [uploadedFiles, setUploadedFiles] = useState<{[key: string]: File[]}>({
     manuscript: [],
@@ -417,7 +437,35 @@ function SubmitPageContent() {
   }
 
   const handleSubmitManuscript = async () => {
-   
+    // Check profile completeness before submission - TEMPORARILY DISABLED
+    /*
+    try {
+      const eligibilityResponse = await fetch('/api/submission/eligibility')
+      if (eligibilityResponse.ok) {
+        const eligibilityData = await eligibilityResponse.json()
+        if (eligibilityData.success && !eligibilityData.eligibility.canSubmit) {
+          toast({
+            variant: "destructive",
+            title: "Profile Incomplete",
+            description: `Your profile is only ${eligibilityData.eligibility.score}% complete. You need at least 80% to submit research papers.`,
+          })
+          return
+        }
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to check eligibility:', error)
+      }
+      toast({
+        variant: "destructive",
+        title: "Submission Error",
+        description: "Unable to verify profile completion. Please try again.",
+      })
+      return
+    }
+    */
+
+    // Use consolidated validation for final submission
     const validation = validateCurrentStep(5, formData as SubmissionFormData)
     
     if (!validation.isValid) {
@@ -668,7 +716,7 @@ function SubmitPageContent() {
                           <span>Institutional affiliation</span>
                         </div>
                       )}
-                      {(!profileData?.bio || profileData.bio.length < 50) && (
+                      {((profileData?.bio?.length ?? 0) < 50) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Professional biography (50+ chars)</span>
@@ -680,25 +728,25 @@ function SubmitPageContent() {
                           <span>ORCID identifier</span>
                         </div>
                       )}
-                      {(!profileData?.expertise || profileData.expertise.length === 0) && (
+                      {((profileData?.expertise?.length ?? 0) === 0) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Areas of expertise</span>
                         </div>
                       )}
-                      {(!profileData?.specializations || profileData.specializations.length === 0) && (
+                      {((profileData?.specializations?.length ?? 0) === 0) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Academic specializations</span>
                         </div>
                       )}
-                      {(!profileData?.researchInterests || profileData.researchInterests.length === 0) && (
+                      {((profileData?.researchInterests?.length ?? 0) === 0) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Research interests</span>
                         </div>
                       )}
-                      {(!profileData?.languagesSpoken || profileData.languagesSpoken.length === 0) && (
+                      {((profileData?.languagesSpoken?.length ?? 0) === 0) && (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-orange-600" />
                           <span>Languages spoken</span>
@@ -895,14 +943,14 @@ function SubmitPageContent() {
                   <Label htmlFor="abstract">Abstract *</Label>
                   <Textarea
                     id="abstract"
-                    placeholder="Provide a structured abstract (minimum 250 characters)"
+                    placeholder="Provide a structured abstract (minimum 250 words)"
                     className="min-h-[120px]"
                     value={formData.abstract}
                     onChange={(e) => handleFormChange('abstract', e.target.value)}
                   />
                   <p className="text-sm text-gray-500">
-                    <span className={formData.abstract.length >= 250 ? "text-green-600" : "text-red-500"}>
-                      {formData.abstract.length}/250 characters minimum
+                    <span className={formData.abstract.length >= 1250 ? "text-green-600" : "text-red-500"}>
+                      {Math.round(formData.abstract.length / 5)} words (minimum 250 words required)
                     </span>
                   </p>
                 </div>
@@ -923,7 +971,7 @@ function SubmitPageContent() {
                           : "text-red-500"
                         : "text-red-500"
                     }>
-                      {formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean).length : 0}/3 keywords minimum
+                      {formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean).length : 0}/4 keywords minimum
                     </span>
                   </p>
                 </div>
@@ -1339,8 +1387,8 @@ function SubmitPageContent() {
                         <span className="font-medium">
                           {formData.abstract ? `${formData.abstract.substring(0, 30)}...` : "Not provided"}
                           {formData.abstract && (
-                            <span className={`ml-2 text-xs ${formData.abstract.length >= 250 ? 'text-green-600' : 'text-red-500'}`}>
-                              ({formData.abstract.length} chars)
+                            <span className={`ml-2 text-xs ${formData.abstract.length >= 1250 ? 'text-green-600' : 'text-red-500'}`}>
+                              ({Math.round(formData.abstract.length / 5)} words)
                             </span>
                           )}
                         </span>
@@ -1444,7 +1492,7 @@ function SubmitPageContent() {
                     !formData.termsAccepted ||
                     !formData.guidelinesAccepted ||
                     formData.title.length < 10 ||
-                    formData.abstract.length < 250 ||
+                    formData.abstract.length < 100 ||
                     !formData.category ||
                     (formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean).length < 3 : true)
                   }
