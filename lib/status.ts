@@ -2,6 +2,7 @@ export type CanonicalStatus =
   | "draft"
   | "submitted"
   | "editorial_assistant_review"
+  | "editor_in_chief_review"
   | "associate_editor_assignment"
   | "associate_editor_review"
   | "reviewer_assignment"
@@ -41,6 +42,7 @@ export function isCanonicalStatus(val: string): val is CanonicalStatus {
     val === "draft" ||
     val === "submitted" ||
     val === "editorial_assistant_review" ||
+    val === "editor_in_chief_review" ||
     val === "associate_editor_assignment" ||
     val === "associate_editor_review" ||
     val === "reviewer_assignment" ||
@@ -61,6 +63,7 @@ export function displayStatus(status: string | null | undefined): string {
     draft: "Draft",
     submitted: "Submitted",
     editorial_assistant_review: "Editorial Assistant Review",
+    editor_in_chief_review: "Editor-in-Chief Review",
     associate_editor_assignment: "Assign Associate Editor",
     associate_editor_review: "Associate Editor Review",
     reviewer_assignment: "Reviewer Assignment",
@@ -78,7 +81,8 @@ export function displayStatus(status: string | null | undefined): string {
 export const WORKFLOW_TRANSITIONS: Record<CanonicalStatus, CanonicalStatus[]> = {
   draft: ["submitted"],
   submitted: ["editorial_assistant_review", "reviewer_assignment", "under_review"],
-  editorial_assistant_review: ["associate_editor_assignment"],
+  editorial_assistant_review: ["editor_in_chief_review"],
+  editor_in_chief_review: ["associate_editor_assignment"],
   associate_editor_assignment: ["associate_editor_review"],
   associate_editor_review: ["reviewer_assignment", "revision_requested", "accepted", "rejected"],
   reviewer_assignment: ["under_review"],

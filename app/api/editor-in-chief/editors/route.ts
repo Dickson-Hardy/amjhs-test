@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { users, editorProfiles, articles } from "@/lib/db/schema"
+import { users, editorProfiles, articles, submissions, editorAssignments } from "@/lib/db/schema"
 import { sql, eq, inArray } from "drizzle-orm"
 import { logError } from "@/lib/logger"
+import { EditorialAssistantService } from "@/lib/workflow"
 
 export async function GET() {
   try {
@@ -85,7 +86,7 @@ export async function GET() {
       name: editor.name,
       email: editor.email,
       role: editor.role,
-      section: editor.assignedSections?.length > 0 
+      section: editor.assignedSections && editor.assignedSections.length > 0 
         ? editor.assignedSections.join(', ') 
         : 'General',
       workload: editor.currentWorkload || 0,
@@ -118,5 +119,111 @@ export async function GET() {
   } catch (error) {
     logError(error as Error, { endpoint: `/api/editor-in-chief/editors` })
     return NextResponse.json({ success: false, error: "Failed to fetch editors" }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    // Only editor-in-chief and admin can assign editors
+    if (!session?.user || !["editor-in-chief", "admin"].includes(session.user.role || "")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { submissionId, associateEditorId, notes } = await request.json()
+
+    if (!submissionId || !associateEditorId) {
+      return NextResponse.json({ 
+        error: "Submission ID and Associate Editor ID are required" 
+      }, { status: 400 })
+    }
+
+    // Verify the submission exists and is in the correct status
+    const submission = await db
+      .select({
+        id: submissions.id,
+        articleId: submissions.articleId,
+        status: submissions.status,
+        authorId: submissions.authorId
+      })
+      .from(submissions)
+      .where(eq(submissions.id, submissionId))
+      .limit(1)
+      .then(results => results[0] || null)
+
+    if (!submission) {
+      return NextResponse.json({ error: "Submission not found" }, { status: 404 })
+    }
+
+    if (submission.status !== "editor_in_chief_review") {
+      return NextResponse.json({ 
+        error: "Submission is not in the correct status for editor assignment" 
+      }, { status: 400 })
+    }
+
+    // Verify the associate editor exists
+    const associateEditor = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role
+      })
+      .from(users)
+      .where(eq(users.id, associateEditorId))
+      .limit(1)
+      .then(results => results[0] || null)
+
+    if (!associateEditor || !["associate-editor", "section-editor", "managing-editor"].includes(associateEditor.role || "")) {
+      return NextResponse.json({ error: "Invalid associate editor" }, { status: 400 })
+    }
+
+    // Use the existing workflow service to assign the editor
+    const editorialService = new EditorialAssistantService()
+    const result = await editorialService.assignAssociateEditor(
+      submissionId,
+      associateEditorId,
+      session.user.id
+    )
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.message }, { status: 400 })
+    }
+
+    // Update submission status to associate_editor_assignment
+    await db
+      .update(submissions)
+      .set({
+        status: "associate_editor_assignment",
+        updatedAt: new Date()
+      })
+      .where(eq(submissions.id, submissionId))
+
+    // Update article status and assign editor
+    if (submission.articleId) {
+      await db
+        .update(articles)
+        .set({
+          editorId: associateEditorId,
+          status: "associate_editor_review",
+          updatedAt: new Date()
+        })
+        .where(eq(articles.id, submission.articleId))
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Manuscript successfully assigned to ${associateEditor.name}`,
+      assignedEditor: {
+        id: associateEditor.id,
+        name: associateEditor.name,
+        email: associateEditor.email
+      }
+    })
+
+  } catch (error) {
+    logError(error as Error, { endpoint: `/api/editor-in-chief/editors`, action: "assignEditor" })
+    return NextResponse.json({ success: false, error: "Failed to assign editor" }, { status: 500 })
   }
 }

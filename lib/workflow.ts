@@ -1574,7 +1574,7 @@ export class EditorialAssistantService {
           manuscript_id: submissionId,
           editorial_assistant_id: editorialAssistantId,
           screening_status: "passed",
-          screening_decision: "proceed_to_associate_editor",
+          screening_decision: "proceed_to_editor_in_chief",
           file_completeness: screeningData.fileCompleteness,
           plagiarism_check: screeningData.plagiarismCheck,
           format_compliance: screeningData.formatCompliance,
@@ -1582,7 +1582,7 @@ export class EditorialAssistantService {
           language_quality: screeningData.languageQuality || false,
           quality_score: qualityScore,
           completeness_score: completenessScore,
-          overall_assessment: "Manuscript meets all initial screening criteria",
+          overall_assessment: "Manuscript meets all initial screening criteria and is ready for Editor-in-Chief review",
           screening_started_at: new Date(),
           screening_completed_at: new Date(),
           screening_duration_minutes: 0,
@@ -1591,45 +1591,34 @@ export class EditorialAssistantService {
           updated_at: new Date()
         })
 
-        // Move to associate_editor_assignment stage (next step in workflow)
+        // Move to editor_in_chief_review stage (new workflow step)
         await this.updateSubmissionStatus(
           submissionId,
-          "associate_editor_assignment",
+          "editor_in_chief_review",
           editorialAssistantId,
-          screeningNotes + "\n\nManuscript approved for associate editor assignment"
+          screeningNotes + "\n\nManuscript approved for Editor-in-Chief review and associate editor assignment"
         )
 
-        // Auto-assign to the single associate editor
-        try {
-          const autoAssignResult = await this.autoAssignToAssociateEditor(
-            submissionId,
-            editorialAssistantId
+        // Notify editor-in-chief of new manuscript for review
+        const editorInChief = await db.select({
+          id: users.id,
+          email: users.email,
+          name: users.name
+        })
+        .from(users)
+        .where(eq(users.role, 'editor-in-chief'))
+        .limit(1)
+        .then(results => results[0] || null)
+
+        if (editorInChief) {
+          await this.createSystemNotification(
+            editorInChief.id,
+            "screening",
+            "New Manuscript for Review",
+            `Manuscript ${submission.id} has passed initial screening and requires your review for associate editor assignment`,
+            submissionId
           )
-          
-          if (autoAssignResult.success) {
-            logger.info("Auto-assigned to associate editor:", { 
-              submissionId, 
-              associateEditorId: autoAssignResult.associateEditorId
-            })
-          } else {
-            logger.warn("Failed to auto-assign to associate editor:", { 
-              submissionId, 
-              reason: autoAssignResult.message 
-            })
-          }
-        } catch (autoAssignError) {
-          logger.error("Failed to auto-assign associate editor:", { submissionId, error: autoAssignError })
-          // Continue without auto-assignment - manual assignment can be done later
         }
-
-        // Notify editorial assistant of successful screening
-        await this.createSystemNotification(
-          editorialAssistantId,
-          "screening",
-          "Screening Completed",
-          `Manuscript ${submission.id} passed initial screening`,
-          submissionId
-        )
 
         // Notify author of successful screening and next steps
         const article = await db.select({
@@ -1646,8 +1635,8 @@ export class EditorialAssistantService {
           await this.createSystemNotification(
             article.authorId!,
             "submission",
-            "Screening Passed",
-            `Your manuscript "${article.title}" has passed initial screening and is now under review.`,
+            "Screening Passed - Under Editorial Review",
+            `Your manuscript "${article.title}" has passed initial screening and is now under editorial review.`,
             submissionId
           )
 
@@ -1665,9 +1654,9 @@ export class EditorialAssistantService {
             if (author?.email) {
               await sendEmail({
                 to: author.email,
-                subject: "Manuscript Screening Completed - Under Review",
-                html: `Dear ${author.name},<br><br>Your manuscript "${article.title}" has successfully passed our initial screening process and is now under peer review.<br><br>We will notify you of the next steps as the review process continues.<br><br>Best regards,<br>Editorial Team`,
-                text: `Dear ${author.name},\n\nYour manuscript "${article.title}" has successfully passed our initial screening process and is now under peer review.\n\nWe will notify you of the next steps as the review process continues.\n\nBest regards,\nEditorial Team`
+                subject: "Manuscript Screening Completed - Under Editorial Review",
+                html: `Dear ${author.name},<br><br>Your manuscript "${article.title}" has successfully passed our initial screening process and is now under editorial review for associate editor assignment.<br><br>We will notify you of the next steps as the review process continues.<br><br>Best regards,<br>Editorial Team`,
+                text: `Dear ${author.name},\n\nYour manuscript "${article.title}" has successfully passed our initial screening process and is now under editorial review for associate editor assignment.\n\nWe will notify you of the next steps as the review process continues.\n\nBest regards,\nEditorial Team`
               })
             }
           } catch (emailError) {
@@ -1677,8 +1666,8 @@ export class EditorialAssistantService {
 
         return {
           success: true,
-          message: "Screening completed successfully - manuscript assigned to associate editor",
-          nextStatus: "associate_editor_assignment"
+          message: "Screening completed successfully - manuscript sent to Editor-in-Chief for review",
+          nextStatus: "editor_in_chief_review"
         }
       } else {
         // Save failed screening record to manuscript_screenings table

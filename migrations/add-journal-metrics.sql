@@ -1,21 +1,21 @@
 -- Create journal_metrics table for storing journal impact factors and metadata
 CREATE TABLE IF NOT EXISTS journal_metrics (
     id VARCHAR(50) PRIMARY KEY DEFAULT 'current',
-    impact_factor DECIMAL(4,2) DEFAULT 1.8,
-    jci_score DECIMAL(4,2) DEFAULT 0.42,
-    h_index INTEGER DEFAULT 12,
-    total_citations INTEGER DEFAULT 245,
-    online_issn VARCHAR(20) DEFAULT '2672-4596',
-    print_issn VARCHAR(20) DEFAULT '2672-4588',
-    established_year INTEGER DEFAULT 2020,
-    publisher TEXT DEFAULT 'Bayelsa Medical University',
-    frequency TEXT DEFAULT 'Quarterly (4 issues per year)',
-    subject_areas JSON DEFAULT '["Medicine", "Health Sciences", "Clinical Research", "Public Health", "Medical Technology"]',
+    impact_factor DECIMAL(4,2) DEFAULT NULL,
+    jci_score DECIMAL(4,2) DEFAULT NULL,
+    h_index INTEGER DEFAULT NULL,
+    total_citations INTEGER DEFAULT 0,
+    online_issn VARCHAR(20) DEFAULT NULL,
+    print_issn VARCHAR(20) DEFAULT NULL,
+    established_year INTEGER DEFAULT 2025,
+    publisher TEXT DEFAULT 'AMHSJ Publishing',
+    frequency TEXT DEFAULT 'By volumes (continuous publishing)',
+    subject_areas JSONB DEFAULT '["Medicine", "Health Sciences", "Clinical Research", "Public Health", "Biomedical Sciences", "Medical Education", "Healthcare Policy"]'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default journal metrics data
+-- Insert actual journal metrics data
 INSERT INTO journal_metrics (
     id,
     impact_factor,
@@ -30,15 +30,15 @@ INSERT INTO journal_metrics (
     subject_areas
 ) VALUES (
     'current',
-    1.8,
-    0.42,
-    12,
-    245,
-    '2672-4596',
-    '2672-4588',
-    2020,
-    'Bayelsa Medical University',
-    'Quarterly (4 issues per year)',
-    '["Medicine", "Health Sciences", "Clinical Research", "Public Health", "Medical Technology"]'
-) ON DUPLICATE KEY UPDATE
+    NULL,  -- Will be populated when journal gets indexed and receives impact factor
+    NULL,  -- Will be populated when journal gets JCI indexing
+    NULL,  -- Will be calculated as citations accumulate
+    0,     -- Starting with zero citations for new journal
+    NULL,  -- Online ISSN will be assigned when journal is officially registered
+    NULL,  -- Print ISSN will be assigned when journal is officially registered  
+    2025,  -- Current establishment year
+    'AMHSJ Publishing',  -- Actual publisher name
+    'By volumes (continuous publishing)',  -- Actual publishing frequency
+    '["Medicine", "Health Sciences", "Clinical Research", "Public Health", "Biomedical Sciences", "Medical Education", "Healthcare Policy"]'::jsonb
+) ON CONFLICT (id) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;

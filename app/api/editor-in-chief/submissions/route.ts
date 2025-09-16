@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { articles, users } from "@/lib/db/schema"
+import { articles, users, submissions } from "@/lib/db/schema"
 import { sql, eq, desc, or, and, isNull } from "drizzle-orm"
 import { logError } from "@/lib/logger"
 
@@ -24,6 +24,8 @@ export async function GET(request: Request) {
     // Base conditions for submissions needing EIC attention
     let whereConditions = [
       or(
+        // New: Manuscripts that passed screening and need EIC review
+        eq(submissions.status, 'editor_in_chief_review'),
         // No editor assigned
         isNull(articles.editorId),
         // Stuck in technical check for too long (>14 days)
@@ -43,20 +45,26 @@ export async function GET(request: Request) {
 
     // Add status filter if specified
     if (status && status !== 'all') {
-      whereConditions.push(eq(articles.status, status))
+      if (status === 'editor_in_chief_review') {
+        whereConditions = [eq(submissions.status, 'editor_in_chief_review')]
+      } else {
+        whereConditions.push(eq(articles.status, status))
+      }
     }
 
     // Get submissions requiring EIC attention
-    const submissions = await db
+    const submissionResults = await db
       .select({
         id: articles.id,
         title: articles.title,
         abstract: articles.abstract,
         category: articles.category,
         status: articles.status,
+        submissionStatus: submissions.status,
         submittedDate: articles.submittedDate,
         updatedAt: articles.updatedAt,
         editorId: articles.editorId,
+        submissionId: submissions.id,
         author: {
           id: users.id,
           name: users.name,
@@ -64,29 +72,31 @@ export async function GET(request: Request) {
           affiliation: users.affiliation,
         },
         daysSinceSubmission: sql<number>`
-          EXTRACT(EPOCH FROM (NOW() - submitted_date)) / 86400
+          EXTRACT(EPOCH FROM (NOW() - COALESCE(submitted_date, articles.created_at))) / 86400
         `,
         daysSinceUpdate: sql<number>`
-          EXTRACT(EPOCH FROM (NOW() - updated_at)) / 86400
+          EXTRACT(EPOCH FROM (NOW() - GREATEST(articles.updated_at, submissions.updated_at))) / 86400
         `,
       })
-      .from(articles)
-      .leftJoin(users, eq(articles.authorId, users.id))
+      .from(submissions)
+      .leftJoin(articles, eq(submissions.articleId, articles.id))
+      .leftJoin(users, eq(submissions.authorId, users.id))
       .where(and(...whereConditions))
-      .orderBy(desc(articles.submittedDate))
+      .orderBy(desc(submissions.updatedAt))
       .limit(limit)
       .offset(offset)
 
     // Get total count for pagination
     const totalCountResult = await db
       .select({ count: sql<number>`count(*)` })
-      .from(articles)
+      .from(submissions)
+      .leftJoin(articles, eq(submissions.articleId, articles.id))
       .where(and(...whereConditions))
 
     const totalCount = totalCountResult[0]?.count || 0
 
     // Process submissions and add priority/flags
-    const processedSubmissions = submissions.map((submission) => {
+    const processedSubmissions = submissionResults.map((submission) => {
       const daysSinceSubmission = submission.daysSinceSubmission || 0
       const daysSinceUpdate = submission.daysSinceUpdate || 0
       
@@ -97,6 +107,7 @@ export async function GET(request: Request) {
 
       // High priority conditions
       if (
+        submission.submissionStatus === 'editor_in_chief_review' || // New manuscripts passed screening
         !submission.editorId || // No editor assigned
         (submission.status === 'editorial_assistant_review' && daysSinceUpdate > 14) ||
         (submission.status === 'under_review' && daysSinceUpdate > 45) ||
@@ -122,15 +133,17 @@ export async function GET(request: Request) {
 
       return {
         id: submission.id,
+        submissionId: submission.submissionId,
         title: submission.title,
         author: submission.author?.name || 'Unknown Author',
         section: submission.category,
         submittedDate: submission.submittedDate?.toISOString() || '',
-        status: submission.status,
+        status: submission.submissionStatus || submission.status, // Prefer submission status
         priority,
         assignedEditor: submission.editorId ? 'Assigned' : 'Unassigned',
         conflictOfInterest,
         needsEICDecision,
+        needsAssociateEditorAssignment: submission.submissionStatus === 'editor_in_chief_review',
         daysSinceSubmission: Math.floor(daysSinceSubmission),
         daysSinceUpdate: Math.floor(daysSinceUpdate),
         authorEmail: submission.author?.email,

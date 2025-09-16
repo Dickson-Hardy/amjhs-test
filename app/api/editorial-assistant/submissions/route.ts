@@ -30,12 +30,8 @@ export async function GET(request: NextRequest) {
 
     switch (filter) {
       case "pending_screening":
-        // Get submissions that need initial screening
-        whereCondition = or(
-          eq(submissions.status, "submitted"),
-          eq(submissions.status, "editorial_assistant_review"),
-          eq(submissions.status, "under_review")
-        )
+        // Get submissions that need initial screening - specifically editorial_assistant_review status
+        whereCondition = eq(submissions.status, "editorial_assistant_review")
         break
       case "screening_in_progress":
         whereCondition = eq(submissions.status, "screening")
@@ -100,7 +96,7 @@ export async function GET(request: NextRequest) {
       authorEmail: submission.authorEmail,
       createdAt: submission.createdAt,
       updatedAt: submission.updatedAt,
-      requiresScreening: ["submitted", "under_review"].includes(submission.status || "")
+      requiresScreening: submission.status === "editorial_assistant_review"
     }))
 
     return NextResponse.json({
