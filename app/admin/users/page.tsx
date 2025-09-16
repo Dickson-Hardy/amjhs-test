@@ -74,8 +74,9 @@ export default function AdminUsersPage() {
   })
 
   useEffect(() => {
-    if (!["admin", "editor-in-chief"].includes(session?.user?.role || "")) return
-    fetchUsersData()
+    if (session?.user?.role && ["admin", "editor-in-chief"].includes(session.user.role)) {
+      fetchUsersData()
+    }
   }, [session])
 
   const fetchUsersData = async () => {
@@ -85,19 +86,21 @@ export default function AdminUsersPage() {
       const response = await fetch('/api/admin/users')
       const data = await response.json()
       
+      console.log('API Response:', data) // Debug log
+      
       if (data.success) {
-        // Handle paginated response structure
-        setUsers(data.data || [])
+        // Handle paginated response structure - data is directly in data field, not data.data
+        const usersData = Array.isArray(data.data) ? data.data : []
+        setUsers(usersData)
         // Calculate stats from the users data
-        const usersData = data.data || []
         const calculatedStats = {
-          totalUsers: usersData.length,
-          activeUsers: usersData.filter((u: User) => u.isActive === true).length,
-          pendingUsers: usersData.filter((u: User) => u.isVerified === false).length,
-          adminUsers: usersData.filter((u: User) => u.role === 'admin').length,
-          editorUsers: usersData.filter((u: User) => u.role === 'associate_editor' || u.role === 'editor').length,
-          reviewerUsers: usersData.filter((u: User) => u.role === 'reviewer').length,
-          authorUsers: usersData.filter((u: User) => u.role === 'author').length,
+          totalUsers: Array.isArray(usersData) ? usersData.length : 0,
+          activeUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.isActive === true).length : 0,
+          pendingUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.isVerified === false).length : 0,
+          adminUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.role === 'admin').length : 0,
+          editorUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.role === 'associate_editor' || u.role === 'editor').length : 0,
+          reviewerUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.role === 'reviewer').length : 0,
+          authorUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.role === 'author').length : 0,
         }
         setStats(calculatedStats)
       } else {
@@ -314,14 +317,14 @@ export default function AdminUsersPage() {
     }
   }
 
-  const filteredUsers = (users || []).filter(user => {
+  const filteredUsers = Array.isArray(users) ? users.filter(user => {
     const matchesRole = filterRole === "all" || user.role === filterRole
     const status = getStatusText(user.isActive, user.isVerified).toLowerCase()
     const matchesStatus = filterStatus === "all" || status === filterStatus
     const matchesSearch = (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (user.email || '').toLowerCase().includes(searchTerm.toLowerCase())
     return matchesRole && matchesStatus && matchesSearch
-  })
+  }) : []
 
   if (loading) {
     return (
