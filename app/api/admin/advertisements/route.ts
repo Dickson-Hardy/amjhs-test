@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "../../auth/[...nextauth]/route"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { advertisements } from "@/lib/db/schema"
-import { eq, and, gt } from "drizzle-orm"
+import { eq, and, gt, SQLWrapper } from "drizzle-orm"
+import { logger } from "@/lib/logger"
 
 // GET /api/admin/advertisements - Get all advertisements
 export async function GET(request: NextRequest) {
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     const position = searchParams.get("position")
     const activeOnly = searchParams.get("active") === "true"
 
-    let whereConditions: unknown[] = []
+    let whereConditions: SQLWrapper[] = []
 
     if (position) {
       whereConditions.push(eq(advertisements.position, position))
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
       advertisements: ads,
     })
   } catch (error) {
-    logger.error("Error fetching advertisements:", error)
+    logger.error("Error fetching advertisements", { error })
     return NextResponse.json(
       { error: "Failed to fetch advertisements" },
       { status: 500 }
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user || (session.user as unknown).role !== "admin") {
+    if (!session?.user || (session.user as any).role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       position,
       isActive: true,
       expiresAt: expiresAt ? new Date(expiresAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      createdBy: (session.user as unknown).id,
+      createdBy: (session.user as any).id,
     }).returning()
 
     return NextResponse.json({
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
       advertisement: newAd,
     })
   } catch (error) {
-    logger.error("Error creating advertisement:", error)
+    logger.error("Error creating advertisement", { error })
     return NextResponse.json(
       { error: "Failed to create advertisement" },
       { status: 500 }
@@ -93,7 +94,7 @@ export async function PUT(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user || (session.user as unknown).role !== "admin") {
+    if (!session?.user || (session.user as any).role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -107,7 +108,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updateData: unknown = { updatedAt: new Date() }
+    const updateData: any = { updatedAt: new Date() }
     
     if (title !== undefined) updateData.title = title
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl
@@ -133,7 +134,7 @@ export async function PUT(request: NextRequest) {
       advertisement: updatedAd,
     })
   } catch (error) {
-    logger.error("Error updating advertisement:", error)
+    logger.error("Error updating advertisement", { error })
     return NextResponse.json(
       { error: "Failed to update advertisement" },
       { status: 500 }
@@ -146,7 +147,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user || (session.user as unknown).role !== "admin") {
+    if (!session?.user || (session.user as any).role !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -176,7 +177,7 @@ export async function DELETE(request: NextRequest) {
       message: "Advertisement deleted successfully",
     })
   } catch (error) {
-    logger.error("Error deleting advertisement:", error)
+    logger.error("Error deleting advertisement", { error })
     return NextResponse.json(
       { error: "Failed to delete advertisement" },
       { status: 500 }

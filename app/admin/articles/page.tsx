@@ -90,6 +90,7 @@ interface CreateArticleForm {
   content: string
   keywords: string[]
   category: string
+  authorName: string
   authorEmail: string
   coAuthors: CoAuthor[]
   status: string
@@ -142,6 +143,7 @@ export default function AdminArticlesPage() {
     content: '',
     keywords: [],
     category: '',
+    authorName: '',
     authorEmail: '',
     coAuthors: [],
     status: 'submitted',
@@ -204,10 +206,57 @@ export default function AdminArticlesPage() {
   }, [searchTerm, statusFilter]) // Add dependencies for useCallback
 
   const handleCreateArticle = async () => {
-    if (!form.title || !form.abstract || !form.category || !form.authorEmail || !form.pdfFile) {
+    // Enhanced validation with detailed logging
+    console.log('Form validation check:', {
+      title: form.title,
+      titleLength: form.title?.length || 0,
+      abstract: form.abstract,
+      abstractLength: form.abstract?.length || 0,
+      keywords: form.keywords,
+      keywordsCount: form.keywords?.length || 0,
+      category: form.category,
+      authorName: form.authorName,
+      authorEmail: form.authorEmail,
+      pdfFile: form.pdfFile,
+      pdfFileType: form.pdfFile?.type,
+      pdfFileSize: form.pdfFile?.size
+    })
+
+    // Required fields for direct admin upload (abstract is optional)
+    if (!form.title || !form.category || !form.authorName || !form.authorEmail || !form.pdfFile) {
       toast({
         title: "Validation Error",
-        description: "Please fill in all required fields including the PDF file",
+        description: "Please fill in all required fields: title, category, author name, author email, and PDF file",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Check field length requirements
+    if (form.title.length < 10) {
+      toast({
+        title: "Validation Error",
+        description: "Title must be at least 10 characters long",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // For direct admin uploads, abstract and keywords are optional
+    // Only validate if they're provided
+    if (form.abstract && form.abstract.length > 0 && form.abstract.length < 100) {
+      toast({
+        title: "Validation Error",
+        description: "If provided, abstract must be at least 100 characters long",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (form.pdfFile.type !== 'application/pdf') {
+      toast({
+        title: "Validation Error",
+        description: "Please upload a valid PDF file",
         variant: "destructive"
       })
       return
@@ -225,6 +274,7 @@ export default function AdminArticlesPage() {
       formData.append('content', form.content)
       formData.append('keywords', JSON.stringify(form.keywords))
       formData.append('category', form.category)
+      formData.append('authorName', form.authorName)
       formData.append('authorEmail', form.authorEmail)
       formData.append('coAuthors', JSON.stringify(form.coAuthors))
       formData.append('status', form.status)
@@ -240,12 +290,30 @@ export default function AdminArticlesPage() {
       // Add the PDF file
       formData.append('pdfFile', form.pdfFile)
 
+      // Log the FormData contents for debugging
+      console.log('FormData being sent:')
+      for (let [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          console.log(`${key}:`, {
+            name: value.name,
+            type: value.type,
+            size: value.size
+          })
+        } else {
+          console.log(`${key}:`, value)
+        }
+      }
+
       const response = await fetch('/api/admin/articles', {
         method: 'POST',
         body: formData // Remove Content-Type header to let browser set it with boundary
       })
 
+      console.log('Response status:', response.status)
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+
       const data = await response.json()
+      console.log('Response data:', data)
 
       if (data.success) {
         toast({
@@ -256,6 +324,7 @@ export default function AdminArticlesPage() {
         resetForm()
         fetchArticles()
       } else {
+        console.error('API Error:', data)
         toast({
           title: "Error",
           description: data.error || "Failed to create article",
@@ -263,10 +332,10 @@ export default function AdminArticlesPage() {
         })
       }
     } catch (error) {
-      console.error('Error creating article:', error)
+      console.error('Network/Parse Error:', error)
       toast({
         title: "Error",
-        description: "Failed to create article",
+        description: "Network error or invalid response",
         variant: "destructive"
       })
     } finally {
@@ -281,6 +350,7 @@ export default function AdminArticlesPage() {
       content: '',
       keywords: [],
       category: '',
+      authorName: '',
       authorEmail: '',
       coAuthors: [],
       status: 'submitted',
@@ -720,6 +790,17 @@ export default function AdminArticlesPage() {
                   </TabsContent>
                   
                   <TabsContent value="authors" className="space-y-4">
+                    <div>
+                      <Label htmlFor="authorName">Primary Author Name *</Label>
+                      <Input
+                        id="authorName"
+                        type="text"
+                        value={form.authorName}
+                        onChange={(e) => setForm(prev => ({ ...prev, authorName: e.target.value }))}
+                        placeholder="Dr. John Smith"
+                      />
+                    </div>
+                    
                     <div>
                       <Label htmlFor="authorEmail">Primary Author Email *</Label>
                       <Input

@@ -30,7 +30,7 @@ async function getUsers(request: NextRequest) {
     // Authenticate and authorize
     const session = await requireAuth(request, [ROLES.ADMIN])
     
-    logger.api("Admin users request initiated", {
+    logger.info("Admin users request initiated", {
       userId: session.user.id,
       userRole: session.user.role,
       requestId,
@@ -130,7 +130,7 @@ async function getUsers(request: NextRequest) {
       })
     )
 
-    logger.api("Admin users request completed", {
+    logger.info("Admin users request completed", {
       userId: session.user.id,
       userCount: usersWithCounts.length,
       totalUsers,
@@ -145,24 +145,22 @@ async function getUsers(request: NextRequest) {
     )
 
   } catch (error) {
-    if (error.name === 'ZodError') {
+    if (error instanceof Error && error.name === 'ZodError') {
       logger.error("Invalid query parameters", {
-        error: error.errors,
+        error: (error as any).errors,
         requestId
       })
       return createErrorResponse(
         "Invalid query parameters",
-        400,
-        requestId,
-        error.errors
+        requestId
       )
     }
     
-    if (error.name === 'AuthenticationError' || error.name === 'AuthorizationError') {
+    if (error instanceof Error && (error.name === 'AuthenticationError' || error.name === 'AuthorizationError')) {
       throw error
     }
     
-    return handleDatabaseError(error)
+    return handleDatabaseError(error as Error)
   }
 }
 
@@ -183,7 +181,7 @@ async function updateUser(request: NextRequest) {
     // Authenticate and authorize
     const session = await requireAuth(request, [ROLES.ADMIN])
     
-    logger.api("Admin user update request initiated", {
+    logger.info("Admin user update request initiated", {
       userId: session.user.id,
       userRole: session.user.role,
       requestId,
@@ -200,21 +198,19 @@ async function updateUser(request: NextRequest) {
       if (isActive === false) {
         return createErrorResponse(
           "Cannot deactivate your own account",
-          400,
           requestId
         )
       }
       if (role && role !== session.user.role) {
         return createErrorResponse(
           "Cannot change your own role",
-          400,
           requestId
         )
       }
     }
 
     // Build update object
-    const updateFields = {}
+    const updateFields: any = {}
     if (role !== undefined) updateFields.role = role
     if (isActive !== undefined) updateFields.isActive = isActive
     if (isVerified !== undefined) updateFields.isVerified = isVerified
@@ -238,12 +234,11 @@ async function updateUser(request: NextRequest) {
     if (!updatedUser) {
       return createErrorResponse(
         "User not found",
-        404,
         requestId
       )
     }
 
-    logger.api("User updated successfully", {
+    logger.info("User updated successfully", {
       adminId: session.user.id,
       updatedUserId: userId,
       changes: updateFields,
@@ -257,25 +252,127 @@ async function updateUser(request: NextRequest) {
     )
 
   } catch (error) {
-    if (error.name === 'ZodError') {
+    if (error instanceof Error && error.name === 'ZodError') {
       logger.error("Invalid user update data", {
-        error: error.errors,
+        error: (error as any).errors,
         requestId
       })
       return createErrorResponse(
         "Invalid user update data",
-        400,
-        requestId,
-        error.errors
+        requestId
       )
     }
     
-    if (error.name === 'AuthenticationError' || error.name === 'AuthorizationError') {
+    if (error instanceof Error && (error.name === 'AuthenticationError' || error.name === 'AuthorizationError')) {
       throw error
     }
     
-    return handleDatabaseError(error)
+    return handleDatabaseError(error as Error)
   }
 }
 
 export const PATCH = withErrorHandler(updateUser)
+
+// Validation schema for user creation
+const userCreateSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Valid email is required"),
+  role: z.enum(['admin', 'associate_editor', 'editor', 'reviewer', 'author']).default('author'),
+  password: z.string().min(6, "Password must be at least 6 characters")
+})
+
+async function createUser(request: NextRequest) {
+  const requestId = crypto.randomUUID()
+  
+  try {
+    // Authenticate and authorize
+    const session = await requireAuth(request, [ROLES.ADMIN])
+    
+    logger.info("Admin user creation request initiated", {
+      userId: session.user.id,
+      userRole: session.user.role,
+      requestId,
+      endpoint: "/api/admin/users POST"
+    })
+
+    const body = await request.json()
+    const userData = userCreateSchema.parse(body)
+    
+    const { name, email, role, password } = userData
+
+    // Check if user already exists
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1)
+
+    if (existingUser.length > 0) {
+      return createErrorResponse(
+        "User with this email already exists",
+        requestId
+      )
+    }
+
+    // Hash password (you'll need to implement password hashing)
+    const bcrypt = require('bcryptjs')
+    const hashedPassword = await bcrypt.hash(password, 12)
+
+    // Create user
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        name,
+        email,
+        role,
+        password: hashedPassword,
+        isActive: true,
+        isVerified: true, // Admin-created users are auto-verified
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        isActive: users.isActive,
+        isVerified: users.isVerified,
+        createdAt: users.createdAt
+      })
+
+    logger.info("User created successfully", {
+      adminId: session.user.id,
+      newUserId: newUser.id,
+      newUserEmail: email,
+      newUserRole: role,
+      requestId
+    })
+
+    return createApiResponse(
+      newUser,
+      "User created successfully",
+      requestId
+    )
+
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ZodError') {
+      logger.error("Invalid user creation data", {
+        error: (error as any).errors,
+        requestId
+      })
+      return createErrorResponse(
+        "Invalid user creation data",
+        requestId
+      )
+    }
+    
+    if (error instanceof Error && (error.name === 'AuthenticationError' || error.name === 'AuthorizationError')) {
+      throw error
+    }
+    
+    return handleDatabaseError(error as Error)
+  }
+}
+
+export const POST = withErrorHandler(createUser)

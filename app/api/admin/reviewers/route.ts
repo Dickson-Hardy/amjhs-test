@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    logger.error("Error fetching reviewers:", error)
+    console.error("Error fetching reviewers:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

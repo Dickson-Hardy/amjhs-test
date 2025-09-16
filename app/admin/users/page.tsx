@@ -29,12 +29,12 @@ interface User {
   name: string
   email: string
   role: string
-  status: 'active' | 'inactive' | 'pending' | 'suspended'
+  isActive: boolean
+  isVerified: boolean
   joinDate: string
   lastLogin: string
   submissionsCount: number
   reviewsCount: number
-  emailVerified: boolean
 }
 
 interface UserStats {
@@ -50,7 +50,7 @@ interface UserStats {
 export default function AdminUsersPage() {
   const { data: session } = useSession()
   const { toast } = useToast()
-  const [users, setUsers] = useState<User[]>([])
+  const [users, setUsers] = useState<User[]>([]) // Initialize as empty array
   const [stats, setStats] = useState<UserStats>({
     totalUsers: 0,
     activeUsers: 0,
@@ -65,6 +65,13 @@ export default function AdminUsersPage() {
   const [filterRole, setFilterRole] = useState("all")
   const [filterStatus, setFilterStatus] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [createUserForm, setCreateUserForm] = useState({
+    name: '',
+    email: '',
+    role: 'author',
+    password: ''
+  })
 
   useEffect(() => {
     if (!["admin", "editor-in-chief"].includes(session?.user?.role || "")) return
@@ -79,8 +86,20 @@ export default function AdminUsersPage() {
       const data = await response.json()
       
       if (data.success) {
-        setUsers(data.users)
-        setStats(data.stats)
+        // Handle paginated response structure
+        setUsers(data.data || [])
+        // Calculate stats from the users data
+        const usersData = data.data || []
+        const calculatedStats = {
+          totalUsers: usersData.length,
+          activeUsers: usersData.filter((u: User) => u.isActive === true).length,
+          pendingUsers: usersData.filter((u: User) => u.isVerified === false).length,
+          adminUsers: usersData.filter((u: User) => u.role === 'admin').length,
+          editorUsers: usersData.filter((u: User) => u.role === 'associate_editor' || u.role === 'editor').length,
+          reviewerUsers: usersData.filter((u: User) => u.role === 'reviewer').length,
+          authorUsers: usersData.filter((u: User) => u.role === 'author').length,
+        }
+        setStats(calculatedStats)
       } else {
         console.error('Failed to fetch users:', data.error)
         // Fallback to empty state
@@ -214,19 +233,64 @@ export default function AdminUsersPage() {
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800"
-      case "inactive":
-        return "bg-gray-100 text-gray-800"
-      case "pending":
-        return "bg-yellow-100 text-yellow-800"
-      case "suspended":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
+  const handleCreateUser = async () => {
+    if (!createUserForm.name || !createUserForm.email || !createUserForm.password) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      })
+      return
     }
+
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createUserForm)
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "User Created",
+          description: "User created successfully",
+        })
+        setIsCreateDialogOpen(false)
+        setCreateUserForm({ name: '', email: '', role: 'author', password: '' })
+        fetchUsersData()
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to create user",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error creating user:', error)
+      toast({
+        title: "Error",
+        description: "Failed to create user",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const getStatusColor = (isActive: boolean, isVerified: boolean) => {
+    if (!isVerified) {
+      return "bg-yellow-100 text-yellow-800" // Pending verification
+    }
+    if (isActive) {
+      return "bg-green-100 text-green-800" // Active
+    }
+    return "bg-gray-100 text-gray-800" // Inactive
+  }
+
+  const getStatusText = (isActive: boolean, isVerified: boolean) => {
+    if (!isVerified) return "Pending"
+    if (isActive) return "Active"
+    return "Inactive"
   }
 
   const getRoleColor = (role: string) => {
@@ -250,11 +314,12 @@ export default function AdminUsersPage() {
     }
   }
 
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = (users || []).filter(user => {
     const matchesRole = filterRole === "all" || user.role === filterRole
-    const matchesStatus = filterStatus === "all" || user.status === filterStatus
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    const status = getStatusText(user.isActive, user.isVerified).toLowerCase()
+    const matchesStatus = filterStatus === "all" || status === filterStatus
+    const matchesSearch = (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (user.email || '').toLowerCase().includes(searchTerm.toLowerCase())
     return matchesRole && matchesStatus && matchesSearch
   })
 
@@ -277,10 +342,76 @@ export default function AdminUsersPage() {
             <p className="text-gray-600">Manage all journal users and their permissions</p>
           </div>
         </div>
-        <Button>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+              <DialogDescription>
+                Add a new user to the journal system
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Name</label>
+                <Input
+                  value={createUserForm.name}
+                  onChange={(e) => setCreateUserForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Full name"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <Input
+                  type="email"
+                  value={createUserForm.email}
+                  onChange={(e) => setCreateUserForm(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="email@example.com"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Role</label>
+                <Select value={createUserForm.role} onValueChange={(value) => setCreateUserForm(prev => ({ ...prev, role: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="author">Author</SelectItem>
+                    <SelectItem value="reviewer">Reviewer</SelectItem>
+                    <SelectItem value="editor">Editor</SelectItem>
+                    <SelectItem value="associate_editor">Associate Editor</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Password</label>
+                <Input
+                  type="password"
+                  value={createUserForm.password}
+                  onChange={(e) => setCreateUserForm(prev => ({ ...prev, password: e.target.value }))}
+                  placeholder="Temporary password"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleCreateUser} className="flex-1">
+                  Create User
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsCreateDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Stats Cards */}
@@ -389,7 +520,7 @@ export default function AdminUsersPage() {
                     <div>
                       <div className="font-medium flex items-center gap-2">
                         {user.name}
-                        {user.emailVerified ? (
+                        {user.isVerified ? (
                           <CheckCircle className="h-4 w-4 text-green-500" />
                         ) : (
                           <XCircle className="h-4 w-4 text-red-500" />
@@ -405,8 +536,8 @@ export default function AdminUsersPage() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge className={getStatusColor(user.status)}>
-                    {user.status}
+                  <Badge className={getStatusColor(user.isActive, user.isVerified)}>
+                    {getStatusText(user.isActive, user.isVerified)}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -467,7 +598,7 @@ export default function AdminUsersPage() {
                           </div>
                           <div>
                             <label className="text-sm font-medium">Status</label>
-                            <Select defaultValue={user.status}>
+                            <Select defaultValue={getStatusText(user.isActive, user.isVerified).toLowerCase()}>
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
@@ -520,7 +651,7 @@ export default function AdminUsersPage() {
                 </div>
                 <div>
                   <label className="text-sm font-medium">Status</label>
-                  <p className="text-sm text-gray-600">{selectedUser.status}</p>
+                  <p className="text-sm text-gray-600">{getStatusText(selectedUser.isActive, selectedUser.isVerified)}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Join Date</label>
@@ -546,7 +677,7 @@ export default function AdminUsersPage() {
               <div>
                 <label className="text-sm font-medium">Email Verification</label>
                 <div className="flex items-center gap-2 mt-1">
-                  {selectedUser.emailVerified ? (
+                  {selectedUser.isVerified ? (
                     <>
                       <CheckCircle className="h-4 w-4 text-green-500" />
                       <span className="text-sm text-green-600">Verified</span>

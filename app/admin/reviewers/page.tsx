@@ -88,7 +88,7 @@ export default function AdminReviewersPage() {
         setReviewers(data.reviewers)
         setStats(data.stats)
       } else {
-        logger.error('Failed to fetch reviewers:', data.error)
+        console.error('Failed to fetch reviewers:', data.error)
         // Fallback to empty state
         setReviewers([])
         setStats({
@@ -101,7 +101,7 @@ export default function AdminReviewersPage() {
         })
       }
     } catch (error) {
-      logger.error('Error fetching reviewers data:', error)
+      console.error('Error fetching reviewers data:', error)
       // Fallback to empty state
       setReviewers([])
       setStats({
@@ -141,7 +141,7 @@ export default function AdminReviewersPage() {
         })
       }
     } catch (error) {
-      logger.error('Error updating reviewer status:', error)
+      console.error('Error updating reviewer status:', error)
       toast({
         title: "Error",
         description: "Failed to update reviewer status",
@@ -191,7 +191,7 @@ export default function AdminReviewersPage() {
         })
       }
     } catch (error) {
-      logger.error('Error inviting reviewer:', error)
+      console.error('Error inviting reviewer:', error)
       toast({
         title: "Error",
         description: "Failed to send invitation",

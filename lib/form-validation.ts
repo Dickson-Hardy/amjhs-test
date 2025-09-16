@@ -36,8 +36,8 @@ export function validateStep1(formData: SubmissionFormData): ValidationResult {
     errors.push("Title must be at least 10 characters long")
   }
 
-  if (!formData.abstract || formData.abstract.length < 1250) {
-    errors.push("Abstract must be at least 250 words (approximately 1250 characters)")
+  if (!formData.abstract || formData.abstract.length < 250) {
+    errors.push("Abstract must be at least 250 characters long (approximately 50 words)")
   }
 
   if (!formData.category) {
@@ -45,8 +45,8 @@ export function validateStep1(formData: SubmissionFormData): ValidationResult {
   }
 
   const keywordArray = formData.keywords.split(',').map(k => k.trim()).filter(Boolean)
-  if (keywordArray.length < 4) {
-    errors.push("Please provide at least 4 keywords separated by commas")
+  if (keywordArray.length < 3) {
+    errors.push("Please provide at least 3 keywords separated by commas")
   }
 
   return {

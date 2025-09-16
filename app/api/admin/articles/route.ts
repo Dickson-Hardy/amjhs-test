@@ -12,15 +12,16 @@ import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
 import { existsSync } from "fs"
 
-// Validation schema for article creation
+// Validation schema for article creation (for direct admin uploads)
 const createArticleSchema = z.object({
   title: z.string().min(10, "Title must be at least 10 characters"),
-  abstract: z.string().min(100, "Abstract must be at least 100 characters"),
+  abstract: z.string().optional(), // Optional for direct admin uploads
   content: z.string().optional(),
-  keywords: z.array(z.string()).min(3, "At least 3 keywords required"),
+  keywords: z.array(z.string()).optional(), // Optional for direct admin uploads
   category: z.string().min(1, "Category is required"),
   authorId: z.string().uuid("Valid author ID required").optional(),
-  authorEmail: z.string().email("Valid author email required").optional(),
+  authorName: z.string().min(1, "Author name is required"),
+  authorEmail: z.string().email("Valid author email required"),
   coAuthors: z.array(z.object({
     name: z.string(),
     email: z.string().email(),
@@ -137,10 +138,11 @@ export async function POST(request: NextRequest) {
     
     // Extract form fields
     const title = formData.get('title') as string
-    const abstract = formData.get('abstract') as string
+    const abstract = formData.get('abstract') as string || ""
     const content = formData.get('content') as string || ""
     const keywordsStr = formData.get('keywords') as string
     const category = formData.get('category') as string
+    const authorName = formData.get('authorName') as string
     const authorEmail = formData.get('authorEmail') as string
     const coAuthorsStr = formData.get('coAuthors') as string
     const status = formData.get('status') as string || "submitted"
@@ -166,7 +168,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate required fields
+    // Validate required fields for direct admin upload
     if (!title || title.length < 10) {
       return NextResponse.json(
         { error: "Title must be at least 10 characters" },
@@ -174,16 +176,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!abstract || abstract.length < 100) {
+    // Abstract is optional for direct admin uploads
+    if (abstract && abstract.length > 0 && abstract.length < 100) {
       return NextResponse.json(
-        { error: "Abstract must be at least 100 characters" },
+        { error: "If provided, abstract must be at least 100 characters" },
         { status: 400 }
       )
     }
 
-    if (!keywords || keywords.length < 3) {
+    // Keywords are optional for direct admin uploads
+    if (keywords && keywords.length > 0 && keywords.length < 3) {
       return NextResponse.json(
-        { error: "At least 3 keywords required" },
+        { error: "If provided, at least 3 keywords are required" },
         { status: 400 }
       )
     }
@@ -191,6 +195,13 @@ export async function POST(request: NextRequest) {
     if (!category) {
       return NextResponse.json(
         { error: "Category is required" },
+        { status: 400 }
+      )
+    }
+
+    if (!authorName) {
+      return NextResponse.json(
+        { error: "Author name is required" },
         { status: 400 }
       )
     }
@@ -261,13 +272,21 @@ export async function POST(request: NextRequest) {
 
     if (existingAuthor.length > 0) {
       authorId = existingAuthor[0].id
+      
+      // Update author name if provided and different
+      if (authorName && existingAuthor[0].name !== authorName) {
+        await db
+          .update(users)
+          .set({ name: authorName })
+          .where(eq(users.id, existingAuthor[0].id))
+      }
     } else {
       // Create a basic author record
       const newAuthor = await db
         .insert(users)
         .values({
           email: authorEmail,
-          name: coAuthors?.[0]?.name || "Author Name Required",
+          name: authorName || "Author Name Required",
           role: "author",
           isVerified: false,
           isActive: true

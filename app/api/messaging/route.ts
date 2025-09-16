@@ -123,7 +123,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json()
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 })
+    }
+
     const validatedData = messageSchema.parse(body)
 
     // Resolve recipient based on type and context
@@ -165,69 +171,99 @@ export async function POST(request: NextRequest) {
 
     // Find existing conversation or create new one
     let conversationId = null
+    
+    // Build where conditions more carefully
+    const conversationWhereConditions = [
+      or(
+        and(
+          eq(conversations.participant1Id, session.user.id),
+          eq(conversations.participant2Id, recipientId)
+        ),
+        and(
+          eq(conversations.participant1Id, recipientId),
+          eq(conversations.participant2Id, session.user.id)
+        )
+      )
+    ]
+
+    // Only add submission filter if submissionId is provided
+    if (validatedData.submissionId) {
+      conversationWhereConditions.push(eq(conversations.relatedId, validatedData.submissionId))
+    }
+
     const existingConversation = await db
       .select({ id: conversations.id })
       .from(conversations)
-      .where(
-        and(
-          eq(conversations.relatedId, validatedData.submissionId || ""),
-          or(
-            and(
-              eq(conversations.participant1Id, session.user.id),
-              eq(conversations.participant2Id, recipientId)
-            ),
-            and(
-              eq(conversations.participant1Id, recipientId),
-              eq(conversations.participant2Id, session.user.id)
-            )
-          )
-        )
-      )
+      .where(and(...conversationWhereConditions))
       .limit(1)
 
     if (existingConversation.length) {
       conversationId = existingConversation[0].id
     } else {
       // Create new conversation
-      const newConversation = await db
-        .insert(conversations)
-        .values({
-          subject: validatedData.subject,
-          type: validatedData.messageType,
-          relatedId: validatedData.submissionId || null,
-          relatedTitle: submissionTitle,
-          participant1Id: session.user.id,
-          participant2Id: recipientId,
-          lastActivity: new Date(),
-        })
-        .returning()
+      try {
+        const newConversation = await db
+          .insert(conversations)
+          .values({
+            subject: validatedData.subject,
+            type: validatedData.messageType,
+            relatedId: validatedData.submissionId || null,
+            relatedTitle: submissionTitle,
+            participant1Id: session.user.id,
+            participant2Id: recipientId,
+            lastActivity: new Date(),
+          })
+          .returning()
 
-      conversationId = newConversation[0].id
+        if (!newConversation || !newConversation[0]) {
+          throw new Error("Failed to create conversation")
+        }
+        
+        conversationId = newConversation[0].id
+      } catch (convError) {
+        logError(convError as Error, { operation: "createConversation", submissionId: validatedData.submissionId })
+        return NextResponse.json({ success: false, error: "Failed to create conversation" }, { status: 500 })
+      }
     }
 
     // Create the message
-    const newMessage = await db
-      .insert(messages)
-      .values({
-        conversationId,
-        senderId: session.user.id,
-        content: validatedData.content,
-        subject: validatedData.subject,
-        messageType: validatedData.messageType,
-        priority: validatedData.priority,
-        isRead: false,
-        attachments: [],
-      })
-      .returning()
+    let newMessage
+    try {
+      newMessage = await db
+        .insert(messages)
+        .values({
+          conversationId,
+          senderId: session.user.id,
+          content: validatedData.content,
+          subject: validatedData.subject,
+          messageType: validatedData.messageType,
+          priority: validatedData.priority,
+          isRead: false,
+          attachments: [],
+        })
+        .returning()
+
+      if (!newMessage || !newMessage[0]) {
+        throw new Error("Failed to create message")
+      }
+    } catch (msgError) {
+      logError(msgError as Error, { operation: "createMessage", conversationId })
+      return NextResponse.json({ success: false, error: "Failed to create message" }, { status: 500 })
+    }
 
     // Update conversation
-    await db
-      .update(conversations)
-      .set({
-        lastActivity: new Date(),
-        lastMessageId: newMessage[0].id,
-      })
-      .where(eq(conversations.id, conversationId))
+    try {
+      await db
+        .update(conversations)
+        .set({
+          lastActivity: new Date(),
+          lastMessageId: newMessage[0].id,
+        })
+        .where(eq(conversations.id, conversationId))
+    } catch (updateError) {
+      logError(updateError as Error, { operation: "updateConversation", conversationId })
+      // Don't fail the entire request if conversation update fails
+    }
 
     return NextResponse.json({
       success: true,
@@ -260,8 +296,17 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    logError(error as Error, { endpoint: "/api/messaging POST" })
-    return NextResponse.json({ success: false, error: "Failed to send message" }, { status: 500 })
+    logError(error as Error, { 
+      endpoint: "/api/messaging POST",
+      errorMessage: error instanceof Error ? error.message : "Unknown error",
+      errorStack: error instanceof Error ? error.stack : undefined
+    })
+    
+    return NextResponse.json({ 
+      success: false, 
+      error: "Failed to send message",
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : "Unknown error") : undefined
+    }, { status: 500 })
   }
 }
 

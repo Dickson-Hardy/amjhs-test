@@ -1,116 +1,190 @@
 "use client"
 
-import { useState } from "react"
+import Link from "next/link"
+import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { uploadFileChunked, formatFileSize } from "@/lib/chunked-upload"
-import { RouteGuard } from "@/components/route-guard"
-import AuthorLayout from "@/components/layouts/author-layout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Upload, FileText, AlertCircle, CheckCircle, X, Plus, Image, Table, FileSpreadsheet, Mail, Shield, Award, Globe, User, AlertTriangle, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { 
-  FileText, 
-  Upload, 
-  Plus, 
-  X,
-  AlertCircle,
-  CheckCircle,
-  ArrowRight,
-  User,
-  AlertTriangle,
-  Info
-} from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { useToast } from "@/hooks/use-toast"
+import AuthorLayout from "@/components/layouts/author-layout"
 
-interface Author {
-  firstName: string
-  lastName: string
-  email: string
-  affiliation: string
-  isCorresponding: boolean
-}
+import { FileUploadSection } from "@/components/file-upload-section"
+import { FormValidationIndicator } from "@/components/form-validation-indicator"
+import { validateCurrentStep, type SubmissionFormData } from "@/lib/form-validation"
 
-interface RecommendedReviewer {
-  name: string
-  email: string
-  affiliation: string
-  expertise: string
-}
-
-interface UploadedFile {
-  id: string
-  name: string
-  url: string
-  type: string
-  fileId: string
-}
-
-export default function SubmitPage() {
+function SubmitPageContent() {
+  const { data: session, status } = useSession()
   const router = useRouter()
+  const { toast } = useToast()
   const [currentStep, setCurrentStep] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [submissionData, setSubmissionData] = useState({
-    title: "",
-    abstract: "",
-    category: "",
-    keywords: "",
-    authors: [] as Author[],
-    recommendedReviewers: [
-      { name: "", email: "", affiliation: "", expertise: "" },
-      { name: "", email: "", affiliation: "", expertise: "" },
-      { name: "", email: "", affiliation: "", expertise: "" }
-    ] as RecommendedReviewer[],
-    manuscriptFile: null as File | null,
-    coverLetter: null as File | null,
-    supplementaryFiles: [] as File[],
-    uploadedFiles: [] as UploadedFile[],
-    ethicalApproval: false,
-    conflictOfInterest: false,
-    dataAvailability: false,
-    funding: "",
-    acknowledgments: ""
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submissionError, setSubmissionError] = useState("")
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [profileData, setProfileData] = useState<unknown>(null)
+  const [profileCompleteness, setProfileCompleteness] = useState(0)
+  const [uploadedFiles, setUploadedFiles] = useState<{[key: string]: File[]}>({
+    manuscript: [],
+    figures: [],
+    tables: [],
+    supplementary: [],
+    coverLetter: [],
+    ethicsApproval: [],
+    copyrightForm: []
+  })
+  
+  // Track uploaded file metadata with Cloudinary URLs
+  const [cloudinaryFiles, setCloudinaryFiles] = useState<{[key: string]: Array<{
+    id: string
+    originalName: string
+    url: string
+    cloudinaryPublicId: string
+    size: number
+    fileType: string
+  }>}>({
+    manuscript: [],
+    figures: [],
+    tables: [],
+    supplementary: [],
+    coverLetter: [],
+    ethicsApproval: [],
+    copyrightForm: []
   })
 
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  // Form state
+  const [formData, setFormData] = useState({
+    title: "",
+    category: "",
+    abstract: "",
+    keywords: "",
+    funding: "",
+    conflicts: "",
+    authors: [
+      {
+        firstName: "",
+        lastName: "",
+        email: "",
+        orcid: "",
+        institution: "",
+        department: "",
+        country: "",
+        affiliation: "",
+        isCorrespondingAuthor: true,
+      }
+    ],
+    recommendedReviewers: [
+      {
+        name: "",
+        email: "",
+        affiliation: "",
+        expertise: "",
+      },
+      {
+        name: "",
+        email: "",
+        affiliation: "",
+        expertise: "",
+      },
+      {
+        name: "",
+        email: "",
+        affiliation: "",
+        expertise: "",
+      }
+    ],
+    termsAccepted: false,
+    guidelinesAccepted: false,
+  })
 
-  const categories = [
-    "Original Research",
-    "Review Article", 
-    "Case Report",
-    "Letter to Editor",
-    "Short Communication",
-    "Editorial"
-  ]
-
-  const addAuthor = () => {
-    const newAuthor: Author = {
-      firstName: "",
-      lastName: "",
-      email: "",
-      affiliation: "",
-      isCorresponding: false
+  // Pre-fill first author with session data
+  useEffect(() => {
+    if (session?.user) {
+      const nameParts = session.user.name?.split(' ') || []
+      setFormData(prev => ({
+        ...prev,
+        authors: [
+          {
+            firstName: nameParts[0] || "",
+            lastName: nameParts.slice(1).join(' ') || "",
+            email: session.user.email || "",
+            orcid: "",
+            institution: "",
+            department: "",
+            country: "",
+            affiliation: "",
+            isCorrespondingAuthor: true,
+          }
+        ]
+      }))
     }
-    setSubmissionData(prev => ({
+  }, [session])
+
+  // Check profile completeness and submission eligibility
+  useEffect(() => {
+    const checkProfile = async () => {
+      if (!session?.user?.id) return
+      
+      try {
+        setProfileLoading(true)
+        
+        // Check submission eligibility first
+        const eligibilityResponse = await fetch('/api/submission/eligibility')
+        if (eligibilityResponse.ok) {
+          const eligibilityData = await eligibilityResponse.json()
+          if (eligibilityData.success) {
+            setProfileCompleteness(eligibilityData.eligibility.score)
+          }
+        }
+        
+        // Also fetch full profile data for display
+        const profileResponse = await fetch('/api/user/profile')
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json()
+          if (profileData.success) {
+            setProfileData(profileData.profile)
+          }
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to fetch profile data:', error)
+        }
+      } finally {
+        setProfileLoading(false)
+      }
+    }
+
+    checkProfile()
+  }, [session?.user?.id])
+
+  const handleAddAuthor = () => {
+    setFormData(prev => ({
       ...prev,
-      authors: [...prev.authors, newAuthor]
+      authors: [...prev.authors, {
+        firstName: "",
+        lastName: "",
+        email: "",
+        orcid: "",
+        institution: "",
+        department: "",
+        country: "",
+        affiliation: "",
+        isCorrespondingAuthor: false,
+      }]
     }))
   }
 
-  const removeAuthor = (index: number) => {
-    setSubmissionData(prev => ({
-      ...prev,
-      authors: prev.authors.filter((_, i) => i !== index)
-    }))
-  }
-
-  const updateAuthor = (index: number, field: keyof Author, value: string | boolean) => {
-    setSubmissionData(prev => ({
+  const handleUpdateAuthor = (index: number, field: string, value: string | boolean) => {
+    setFormData(prev => ({
       ...prev,
       authors: prev.authors.map((author, i) => 
         i === index ? { ...author, [field]: value } : author
@@ -118,28 +192,47 @@ export default function SubmitPage() {
     }))
   }
 
-  const addRecommendedReviewer = () => {
-    const newReviewer: RecommendedReviewer = {
-      name: "",
-      email: "",
-      affiliation: "",
-      expertise: ""
+  const handleSetCorrespondingAuthor = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      authors: prev.authors.map((author, i) => ({
+        ...author,
+        isCorrespondingAuthor: i === index
+      }))
+    }))
+  }
+
+  const handleRemoveAuthor = (index: number) => {
+    if (formData.authors.length > 1) {
+      setFormData(prev => {
+        const newAuthors = prev.authors.filter((_, i) => i !== index)
+        // If removing corresponding author, make first author corresponding
+        if (prev.authors[index].isCorrespondingAuthor && newAuthors.length > 0) {
+          newAuthors[0].isCorrespondingAuthor = true
+        }
+        return {
+          ...prev,
+          authors: newAuthors
+        }
+      })
     }
-    setSubmissionData(prev => ({
+  }
+
+  // Recommended Reviewers Management Functions
+  const handleAddRecommendedReviewer = () => {
+    setFormData(prev => ({
       ...prev,
-      recommendedReviewers: [...prev.recommendedReviewers, newReviewer]
+      recommendedReviewers: [...prev.recommendedReviewers, {
+        name: "",
+        email: "",
+        affiliation: "",
+        expertise: "",
+      }]
     }))
   }
 
-  const removeRecommendedReviewer = (index: number) => {
-    setSubmissionData(prev => ({
-      ...prev,
-      recommendedReviewers: prev.recommendedReviewers.filter((_, i) => i !== index)
-    }))
-  }
-
-  const updateRecommendedReviewer = (index: number, field: keyof RecommendedReviewer, value: string) => {
-    setSubmissionData(prev => ({
+  const handleUpdateRecommendedReviewer = (index: number, field: string, value: string) => {
+    setFormData(prev => ({
       ...prev,
       recommendedReviewers: prev.recommendedReviewers.map((reviewer, i) => 
         i === index ? { ...reviewer, [field]: value } : reviewer
@@ -147,207 +240,245 @@ export default function SubmitPage() {
     }))
   }
 
-  const uploadFile = async (file: File, category: string): Promise<UploadedFile | null> => {
-    try {
-      setUploading(true)
-      
-      // Client-side file size validation
-      const maxSizes = {
-        manuscript: 10 * 1024 * 1024, // 10MB
-        supplementary: 50 * 1024 * 1024, // 50MB
-        cover_letter: 5 * 1024 * 1024, // 5MB
-        ethics_approval: 5 * 1024 * 1024, // 5MB
-        conflict_disclosure: 2 * 1024 * 1024 // 2MB
-      }
-      
-      const maxSize = maxSizes[category as keyof typeof maxSizes] || 10 * 1024 * 1024
-      if (file.size > maxSize) {
-        throw new Error(`File size ${formatFileSize(file.size)} exceeds limit of ${formatFileSize(maxSize)} for ${category}`)
-      }
-      
-      // Use chunked upload with progress tracking
-      const result = await uploadFileChunked(file, category, `${category} file for submission`, {
-        onProgress: (progress) => {
-          console.log(`Upload progress: ${progress.percentage}% (${progress.chunksUploaded}/${progress.totalChunks} chunks)`)
-          // You can add a progress bar here if needed
-        }
-      })
-
-      if (result.success && result.file) {
-        // Handle both chunked and regular upload response structures
-        const fileData = result.file
-        return {
-          id: fileData.id,
-          name: fileData.originalName,
-          url: fileData.url,
-          type: category,
-          fileId: fileData.id
-        }
-      } else {
-        throw new Error(result.error || 'Upload failed')
-      }
-    } catch (error) {
-      console.error(`Error uploading ${category}:`, error)
-      alert(`Failed to upload ${category}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      return null
-    } finally {
-      setUploading(false)
+  const handleRemoveRecommendedReviewer = (index: number) => {
+    if (formData.recommendedReviewers.length > 3) {
+      setFormData(prev => ({
+        ...prev,
+        recommendedReviewers: prev.recommendedReviewers.filter((_, i) => i !== index)
+      }))
     }
   }
 
-  const handleFileUpload = async (field: string, file: File | null) => {
-    if (!file) {
-      setSubmissionData(prev => ({ ...prev, [field]: null }))
+  const handleFormChange = (field: string, value: string | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleChooseFiles = (category: string, accept?: string, multiple = true) => {
+    // Create file input and trigger click
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = accept || '.doc,.docx'
+    input.multiple = multiple
+    input.onchange = (e) => {
+      const files = (e.target as HTMLInputElement).files
+      if (files) {
+        handleFileUpload(files, category)
+      }
+    }
+    input.click()
+  }
+
+  const handleFileUpload = async (files: FileList, category: string) => {
+    setUploadProgress(0)
+    const uploadPromises = Array.from(files).map(async (file, index) => {
+      try {
+        // Convert file to base64
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        })
+
+        // Upload to Cloudinary via our API
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            fileData: base64,
+            category: category,
+            description: `${category} file for manuscript submission`
+          }),
+        })
+
+        const result = await response.json()
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Upload failed')
+        }
+
+        // Update progress
+        const progressIncrement = 100 / files.length
+        setUploadProgress(prev => Math.min(prev + progressIncrement, 100))
+
+        return {
+          id: result.file.id,
+          originalName: result.file.originalName,
+          url: result.file.url,
+          cloudinaryPublicId: result.file.cloudinaryPublicId,
+          size: file.size,
+          fileType: file.type
+        }
+      } catch (error) {
+        console.error(`Failed to upload ${file.name}:`, error)
+        toast({
+          title: "Upload Failed",
+          description: `Failed to upload ${file.name}. Please try again.`,
+          variant: "destructive"
+        })
+        throw error
+      }
+    })
+
+    try {
+      const uploadedFileMetadata = await Promise.all(uploadPromises)
+      
+      // Add files to both local state (for form display) and Cloudinary metadata
+      setUploadedFiles(prev => ({
+        ...prev,
+        [category]: [...prev[category], ...Array.from(files)]
+      }))
+      
+      setCloudinaryFiles(prev => ({
+        ...prev,
+        [category]: [...prev[category], ...uploadedFileMetadata]
+      }))
+      
+      toast({
+        title: "Files Uploaded Successfully",
+        description: `${files.length} file(s) uploaded to cloud storage for ${category}.`,
+      })
+    } catch (error) {
+      console.error('Upload error:', error)
+      // Reset progress on error
+      setUploadProgress(0)
+    }
+  }
+
+  const removeFile = async (category: string, fileIndex: number) => {
+    try {
+      // Get the Cloudinary file metadata
+      const cloudinaryFile = cloudinaryFiles[category][fileIndex]
+      
+      if (cloudinaryFile?.cloudinaryPublicId) {
+        // Delete from Cloudinary via API (we'll need to create this endpoint)
+        await fetch(`/api/upload/${cloudinaryFile.id}`, {
+          method: 'DELETE'
+        })
+      }
+      
+      // Remove from both local states
+      setUploadedFiles(prev => ({
+        ...prev,
+        [category]: prev[category].filter((_, index) => index !== fileIndex)
+      }))
+      
+      setCloudinaryFiles(prev => ({
+        ...prev,
+        [category]: prev[category].filter((_, index) => index !== fileIndex)
+      }))
+      
+      toast({
+        title: "File Removed",
+        description: "File has been removed from cloud storage.",
+      })
+    } catch (error) {
+      console.error('Failed to remove file:', error)
+      toast({
+        title: "Removal Failed", 
+        description: "Failed to remove file. Please try again.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handlePreviousStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
+  const handleNextStep = () => {
+    // Use consolidated validation
+    const validation = validateCurrentStep(currentStep, formData as SubmissionFormData)
+    
+    if (!validation.isValid) {
+      const firstError = validation.errors[0]
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: firstError,
+      })
+      return
+    }
+    
+    setSubmissionError("") // Clear any previous errors
+    if (currentStep < 5) {
+      setCurrentStep(currentStep + 1)
+    }
+  }
+
+  const handleSubmitManuscript = async () => {
+   
+    const validation = validateCurrentStep(5, formData as SubmissionFormData)
+    
+    if (!validation.isValid) {
+      const firstError = validation.errors[0]
+      toast({
+        variant: "destructive",
+        title: "Submission Error",
+        description: firstError,
+      })
       return
     }
 
-    const category = field === 'manuscriptFile' ? 'manuscript' : 'cover_letter'
-    const uploadedFile = await uploadFile(file, category)
-    
-    if (uploadedFile) {
-      setSubmissionData(prev => ({
-        ...prev,
-        [field]: file,
-        uploadedFiles: [...prev.uploadedFiles.filter(f => f.type !== category), uploadedFile]
-      }))
-    }
-  }
-
-  const handleMultipleFileUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
-
-    const fileArray = Array.from(files)
-    const uploadPromises = fileArray.map(file => uploadFile(file, 'supplementary'))
-    
-    try {
-      setUploading(true)
-      const uploadedFiles = await Promise.all(uploadPromises)
-      const successfulUploads = uploadedFiles.filter(file => file !== null) as UploadedFile[]
-      
-      setSubmissionData(prev => ({
-        ...prev,
-        supplementaryFiles: [...prev.supplementaryFiles, ...fileArray],
-        uploadedFiles: [...prev.uploadedFiles, ...successfulUploads]
-      }))
-    } catch (error) {
-      console.error('Error uploading supplementary files:', error)
-      alert('Some files failed to upload. Please try again.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const validateStep = (step: number): boolean => {
-    const newErrors: Record<string, string> = {}
-
-    if (step === 1) {
-      if (!submissionData.title.trim()) newErrors.title = "Title is required"
-      if (!submissionData.abstract.trim()) {
-        newErrors.abstract = "Abstract is required"
-      } else if (submissionData.abstract.trim().length < 100) {
-        newErrors.abstract = "Abstract must be at least 100 characters"
-      }
-      if (!submissionData.category) newErrors.category = "Category is required"
-      if (!submissionData.keywords.trim()) {
-        newErrors.keywords = "Keywords are required"
-      } else {
-        const keywordArray = submissionData.keywords.split(',').map(k => k.trim()).filter(k => k.length > 0)
-        if (keywordArray.length < 3) {
-          newErrors.keywords = "At least 3 keywords are required"
-        }
-      }
-    }
-
-    if (step === 2) {
-      if (submissionData.authors.length === 0) {
-        newErrors.authors = "At least one author is required"
-      } else {
-        submissionData.authors.forEach((author, index) => {
-          if (!author.firstName.trim()) newErrors[`author${index}FirstName`] = "First name is required"
-          if (!author.lastName.trim()) newErrors[`author${index}LastName`] = "Last name is required"
-          if (!author.email.trim()) newErrors[`author${index}Email`] = "Email is required"
-          if (!author.affiliation.trim()) newErrors[`author${index}Affiliation`] = "Affiliation is required"
-        })
-      }
-    }
-
-    if (step === 3) {
-      // Validate recommended reviewers - minimum 3 required
-      if (submissionData.recommendedReviewers.length < 3) {
-        newErrors.recommendedReviewers = "At least 3 recommended reviewers are required"
-      } else {
-        submissionData.recommendedReviewers.forEach((reviewer, index) => {
-          if (!reviewer.name.trim()) newErrors[`reviewer${index}Name`] = "Reviewer name is required"
-          if (!reviewer.email.trim()) newErrors[`reviewer${index}Email`] = "Reviewer email is required"
-          if (!reviewer.affiliation.trim()) newErrors[`reviewer${index}Affiliation`] = "Reviewer affiliation is required"
-        })
-      }
-    }
-
-         if (step === 4) {
-       // Manuscript file is required
-       if (!submissionData.manuscriptFile) newErrors.manuscriptFile = "Manuscript file is required"
-       // Cover letter and supplementary files are optional
-     }
-
-    if (step === 5) {
-      if (!submissionData.ethicalApproval) newErrors.ethicalApproval = "Ethical approval confirmation is required"
-      if (!submissionData.conflictOfInterest) newErrors.conflictOfInterest = "Conflict of interest declaration is required"
-      if (!submissionData.dataAvailability) newErrors.dataAvailability = "Data availability statement is required"
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const nextStep = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, 5))
-    }
-  }
-
-  const prevStep = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 1))
-  }
-
-  const handleSubmit = async () => {
-    if (!validateStep(4)) return
+    setIsSubmitting(true)
+    setSubmissionError("")
 
     try {
-      setLoading(true)
+      // Prepare submission data according to the schema
+      const keywordArray = formData.keywords.split(',').map(k => k.trim()).filter(Boolean)
       
-      // Prepare submission data in the format expected by the API
-      const submissionPayload = {
+      const submissionData = {
         articleData: {
-          title: submissionData.title,
-          abstract: submissionData.abstract,
-          keywords: submissionData.keywords.split(',').map(k => k.trim()).filter(k => k.length > 0),
-          category: submissionData.category,
-          authors: submissionData.authors.map(author => ({
+          title: formData.title,
+          abstract: formData.abstract,
+          keywords: keywordArray,
+          category: formData.category,
+          authors: formData.authors.map(author => ({
             firstName: author.firstName,
             lastName: author.lastName,
             email: author.email,
-            affiliation: author.affiliation,
-            isCorrespondingAuthor: author.isCorresponding
+            orcid: author.orcid || undefined,
+            affiliation: author.affiliation || `${author.institution}, ${author.department}, ${author.country}`.replace(/^, |, $|,\s*,/g, '').trim(),
+            isCorrespondingAuthor: author.isCorrespondingAuthor,
           })),
-          recommendedReviewers: submissionData.recommendedReviewers.map(reviewer => ({
-            name: reviewer.name.trim(),
-            email: reviewer.email.trim(),
-            affiliation: reviewer.affiliation.trim(),
-            expertise: reviewer.expertise?.trim() || "General expertise"
-          })),
-          files: submissionData.uploadedFiles.map(file => ({
-            url: file.url,
-            type: file.type,
-            name: file.name,
-            fileId: file.fileId
-          })),
-          funding: submissionData.funding,
-          ethicalApproval: submissionData.ethicalApproval,
-          conflictOfInterest: submissionData.conflictOfInterest,
-          coverLetter: submissionData.acknowledgments // Use acknowledgments as cover letter for now
+          files: Object.entries(cloudinaryFiles).flatMap(([type, files]) => 
+            files.map(file => ({
+              name: file.originalName,
+              type: type,
+              size: file.size,
+              contentType: file.fileType,
+              // Use real Cloudinary URLs instead of placeholders
+              url: file.url,
+              fileId: file.id,
+              cloudinaryPublicId: file.cloudinaryPublicId
+            }))
+          ),
+          recommendedReviewers: formData.recommendedReviewers
+            .filter(reviewer => reviewer.name.trim() && reviewer.email.trim() && reviewer.affiliation.trim())
+            .map(reviewer => ({
+              name: reviewer.name.trim(),
+              email: reviewer.email.trim(),
+              affiliation: reviewer.affiliation.trim(),
+              expertise: reviewer.expertise?.trim() || "General expertise",
+            })),
+          coverLetter: uploadedFiles.coverLetter && uploadedFiles.coverLetter.length > 0 
+            ? uploadedFiles.coverLetter[0].name 
+            : undefined,
+          ethicalApproval: uploadedFiles.ethicsApproval && uploadedFiles.ethicsApproval.length > 0,
+          conflictOfInterest: formData.conflicts !== "none" && formData.conflicts !== "",
+          funding: formData.funding || undefined,
         },
-        submissionType: "new" as const
+        submissionType: "new",
       }
 
       const response = await fetch('/api/workflow/submit', {
@@ -355,655 +486,987 @@ export default function SubmitPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(submissionPayload)
+        body: JSON.stringify(submissionData),
       })
 
       const result = await response.json()
 
-      if (response.ok && result.success) {
-        alert(`Submission successful! Your manuscript has been submitted for review. Submission ID: ${result.data.submissionId}
-
-Next Steps:
-1. Editorial Assistant Review (1-2 business days)
-2. Associate Editor Assignment (2-3 business days)  
-3. Reviewer Selection and Invitation (1-2 weeks)
-4. Peer Review Process (4-6 weeks)
-5. Editorial Decision and Feedback
-
-You will receive email notifications at each stage. Track your submission status in the Submissions dashboard.`)
-        router.push("/author/submissions")
+      if (result.success) {
+        toast({
+          title: "Research Paper Submitted Successfully!",
+          description: "Your research paper has been submitted for review. You will receive a confirmation email shortly.",
+        })
+        // Redirect to success page or dashboard
+        router.push(`/dashboard?submitted=true&articleId=${result.article?.id}`)
       } else {
-        throw new Error(result.message || 'Submission failed')
+        toast({
+          variant: "destructive",
+          title: "Submission Failed",
+          description: result.error || 'Submission failed. Please try again.',
+        })
       }
     } catch (error) {
-      console.error("Submission error:", error)
-      alert(`Submission failed: ${error instanceof Error ? error.message : 'Please try again.'}`)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Submission error:', error)
+      }
+      toast({
+        variant: "destructive",
+        title: "Submission Error",
+        description: 'An unexpected error occurred. Please try again.',
+      })
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
   }
 
-  const renderStep1 = () => (
-    <div className="space-y-6">
-      <div>
-        <Label htmlFor="title">Manuscript Title *</Label>
-        <Input
-          id="title"
-          value={submissionData.title}
-          onChange={(e) => setSubmissionData(prev => ({ ...prev, title: e.target.value }))}
-          placeholder="Enter the title of your manuscript"
-          className={errors.title ? "border-red-500" : ""}
-        />
-        {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
-      </div>
+  // Redirect to signup if not authenticated
+  useEffect(() => {
+    if (status === 'loading') return // Still loading
+    
+    if (!session) {
+      // Redirect to signup with return URL
+      router.push('/auth/signup?returnUrl=' + encodeURIComponent('/submit'))
+    }
+  }, [session, status, router])
 
-      <div>
-        <Label htmlFor="category">Manuscript Category *</Label>
-        <Select value={submissionData.category} onValueChange={(value) => setSubmissionData(prev => ({ ...prev, category: value }))}>
-          <SelectTrigger className={errors.category ? "border-red-500" : ""}>
-            <SelectValue placeholder="Select manuscript category" />
-          </SelectTrigger>
-          <SelectContent>
-            {categories.map((category) => (
-              <SelectItem key={category} value={category}>{category}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
-      </div>
-
-      <div>
-        <Label htmlFor="abstract">Abstract *</Label>
-        <Textarea
-          id="abstract"
-          value={submissionData.abstract}
-          onChange={(e) => setSubmissionData(prev => ({ ...prev, abstract: e.target.value }))}
-          placeholder="Enter the abstract of your manuscript (minimum 100 characters)"
-          rows={6}
-          className={errors.abstract ? "border-red-500" : ""}
-        />
-        {errors.abstract && <p className="text-red-500 text-sm mt-1">{errors.abstract}</p>}
-        <p className="text-sm text-gray-500 mt-1">
-          {submissionData.abstract.length}/100 characters minimum
-        </p>
-      </div>
-
-      <div>
-        <Label htmlFor="keywords">Keywords *</Label>
-        <Input
-          id="keywords"
-          value={submissionData.keywords}
-          onChange={(e) => setSubmissionData(prev => ({ ...prev, keywords: e.target.value }))}
-          placeholder="Enter at least 3 keywords separated by commas"
-          className={errors.keywords ? "border-red-500" : ""}
-        />
-        {errors.keywords && <p className="text-red-500 text-sm mt-1">{errors.keywords}</p>}
-      </div>
-    </div>
-  )
-
-  const renderStep2 = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Authors</h3>
-        <Button onClick={addAuthor} type="button">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Author
-        </Button>
-      </div>
-
-      {errors.authors && <p className="text-red-500 text-sm">{errors.authors}</p>}
-
-      {submissionData.authors.map((author, index) => (
-        <Card key={index} className="p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-medium">Author {index + 1}</h4>
-            {submissionData.authors.length > 1 && (
-              <Button
-                onClick={() => removeAuthor(index)}
-                variant="outline"
-                size="sm"
-                type="button"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+  // Show loading state while checking authentication
+  if (status === 'loading') {
+    return (
+      <AuthorLayout>
+        <div className="p-6 flex items-center justify-center min-h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading submission form...</p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor={`firstName${index}`}>First Name *</Label>
-              <Input
-                id={`firstName${index}`}
-                value={author.firstName}
-                onChange={(e) => updateAuthor(index, "firstName", e.target.value)}
-                className={errors[`author${index}FirstName`] ? "border-red-500" : ""}
-              />
-              {errors[`author${index}FirstName`] && (
-                <p className="text-red-500 text-sm mt-1">{errors[`author${index}FirstName`]}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor={`lastName${index}`}>Last Name *</Label>
-              <Input
-                id={`lastName${index}`}
-                value={author.lastName}
-                onChange={(e) => updateAuthor(index, "lastName", e.target.value)}
-                className={errors[`author${index}LastName`] ? "border-red-500" : ""}
-              />
-              {errors[`author${index}LastName`] && (
-                <p className="text-red-500 text-sm mt-1">{errors[`author${index}LastName`]}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor={`email${index}`}>Email *</Label>
-              <Input
-                id={`email${index}`}
-                type="email"
-                value={author.email}
-                onChange={(e) => updateAuthor(index, "email", e.target.value)}
-                className={errors[`author${index}Email`] ? "border-red-500" : ""}
-              />
-              {errors[`author${index}Email`] && (
-                <p className="text-red-500 text-sm mt-1">{errors[`author${index}Email`]}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor={`affiliation${index}`}>Affiliation *</Label>
-              <Input
-                id={`affiliation${index}`}
-                value={author.affiliation}
-                onChange={(e) => updateAuthor(index, "affiliation", e.target.value)}
-                className={errors[`author${index}Affiliation`] ? "border-red-500" : ""}
-              />
-              {errors[`author${index}Affiliation`] && (
-                <p className="text-red-500 text-sm mt-1">{errors[`author${index}Affiliation`]}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id={`corresponding${index}`}
-                checked={author.isCorresponding}
-                onCheckedChange={(checked) => updateAuthor(index, "isCorresponding", checked as boolean)}
-              />
-              <Label htmlFor={`corresponding${index}`}>Corresponding Author</Label>
-            </div>
-          </div>
-        </Card>
-      ))}
-
-      {submissionData.authors.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          <Plus className="h-12 w-12 mx-auto mb-4" />
-          <p>Click "Add Author" to add the first author</p>
         </div>
-      )}
-    </div>
-  )
+      </AuthorLayout>
+    )
+  }
 
-  const renderStep3 = () => (
-    <div className="space-y-6">
-      <Alert className="border-blue-200 bg-blue-50">
-        <Info className="h-5 w-5 text-blue-600" />
-        <AlertDescription className="text-blue-800">
-          <div className="font-semibold mb-2">📝 Recommended Reviewers Guidelines</div>
-          <p className="text-sm mb-2">
-            Please suggest a minimum of <strong>3 qualified reviewers</strong> who can evaluate your manuscript. 
-            These should be experts in your field who are not co-authors and have no conflicts of interest.
+  // Show login prompt if not authenticated
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <AlertCircle className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Authentication Required</h1>
+          <p className="text-gray-600 mb-6">
+            You need to be logged in to submit a research paper. Please create an account or sign in to continue.
           </p>
-          <ul className="text-sm space-y-1">
-            <li>• Choose reviewers who are familiar with your research area</li>
-            <li>• Ensure suggested reviewers have recent publications in relevant journals</li>
-            <li>• Avoid recommending close collaborators or colleagues from your institution</li>
-            <li>• Include reviewers from different institutions and countries when possible</li>
-            <li>• Provide accurate contact information and affiliations</li>
-          </ul>
-        </AlertDescription>
-      </Alert>
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Recommended Reviewers</h3>
-          <p className="text-sm text-gray-600">Minimum 3 reviewers required for submission</p>
-        </div>
-        <Button onClick={addRecommendedReviewer} type="button">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Reviewer
-        </Button>
-      </div>
-
-      {errors.recommendedReviewers && <p className="text-red-500 text-sm">{errors.recommendedReviewers}</p>}
-      
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex-1 bg-gray-200 rounded-full h-2">
-          <div 
-            className={`h-2 rounded-full transition-all duration-300 ${
-              submissionData.recommendedReviewers.filter(r => r.name && r.email && r.affiliation).length >= 3 
-                ? 'bg-green-500' 
-                : 'bg-blue-500'
-            }`}
-            style={{ 
-              width: `${Math.min((submissionData.recommendedReviewers.filter(r => r.name && r.email && r.affiliation).length / 3) * 100, 100)}%` 
-            }}
-          ></div>
-        </div>
-        <span className="text-sm font-medium text-gray-600">
-          {submissionData.recommendedReviewers.filter(r => r.name && r.email && r.affiliation).length}/3 Complete
-        </span>
-      </div>
-
-      {submissionData.recommendedReviewers.map((reviewer, index) => (
-        <Card key={index} className="p-4 border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-medium">Reviewer {index + 1}</h4>
-            {submissionData.recommendedReviewers.length > 3 && (
-              <Button
-                onClick={() => removeRecommendedReviewer(index)}
-                variant="outline"
-                size="sm"
-                type="button"
-                className="text-red-600 border-red-200 hover:bg-red-50"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button asChild>
+              <Link href="/auth/signup">Create Account</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/auth/login">Sign In</Link>
+            </Button>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor={`reviewerName${index}`}>Full Name *</Label>
-              <Input
-                id={`reviewerName${index}`}
-                value={reviewer.name}
-                onChange={(e) => updateRecommendedReviewer(index, "name", e.target.value)}
-                placeholder="Dr. John Smith"
-                className={errors[`reviewer${index}Name`] ? "border-red-500" : ""}
-              />
-              {errors[`reviewer${index}Name`] && (
-                <p className="text-red-500 text-sm mt-1">{errors[`reviewer${index}Name`]}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor={`reviewerEmail${index}`}>Email Address *</Label>
-              <Input
-                id={`reviewerEmail${index}`}
-                type="email"
-                value={reviewer.email}
-                onChange={(e) => updateRecommendedReviewer(index, "email", e.target.value)}
-                placeholder="john.smith@university.edu"
-                className={errors[`reviewer${index}Email`] ? "border-red-500" : ""}
-              />
-              {errors[`reviewer${index}Email`] && (
-                <p className="text-red-500 text-sm mt-1">{errors[`reviewer${index}Email`]}</p>
-              )}
-            </div>
-
-            <div className="md:col-span-2">
-              <Label htmlFor={`reviewerAffiliation${index}`}>Affiliation *</Label>
-              <Input
-                id={`reviewerAffiliation${index}`}
-                value={reviewer.affiliation}
-                onChange={(e) => updateRecommendedReviewer(index, "affiliation", e.target.value)}
-                placeholder="Department of Medicine/Engineering/Science, University of Excellence, Country"
-                className={errors[`reviewer${index}Affiliation`] ? "border-red-500" : ""}
-              />
-              {errors[`reviewer${index}Affiliation`] && (
-                <p className="text-red-500 text-sm mt-1">{errors[`reviewer${index}Affiliation`]}</p>
-              )}
-            </div>
-
-            <div className="md:col-span-2">
-              <Label htmlFor={`reviewerExpertise${index}`}>Area of Expertise (Optional)</Label>
-              <Input
-                id={`reviewerExpertise${index}`}
-                value={reviewer.expertise}
-                onChange={(e) => updateRecommendedReviewer(index, "expertise", e.target.value)}
-                placeholder="Medicine, Computer Science, Physics, etc."
-              />
-            </div>
-          </div>
-        </Card>
-      ))}
-
-      {submissionData.recommendedReviewers.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          <User className="h-12 w-12 mx-auto mb-4" />
-          <p>Click "Add Reviewer" to add the first recommended reviewer</p>
-        </div>
-      )}
-
-      <Alert className="border-amber-200 bg-amber-50">
-        <AlertTriangle className="h-4 w-4 text-amber-600" />
-        <AlertDescription className="text-amber-800">
-          <strong>Important:</strong> The editorial team reserves the right to use additional reviewers 
-          beyond those you recommend. Your suggestions will be considered but are not guaranteed to be selected.
-        </AlertDescription>
-      </Alert>
-    </div>
-  )
-
-     const renderStep4 = () => (
-     <div className="space-y-6">
-       {uploading && (
-         <Alert>
-           <AlertDescription>
-             Uploading files... Please wait.
-           </AlertDescription>
-         </Alert>
-       )}
-
-                {/* File Upload Status Summary */}
-         <Alert className="border-blue-200 bg-blue-50">
-           <Info className="h-5 w-5 text-blue-600" />
-           <AlertDescription className="text-blue-800">
-             <div className="font-semibold mb-2">📁 File Upload Requirements</div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-               <div>
-                 <div className="flex items-center gap-2 mb-1">
-                   <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                   <strong>Required:</strong>
-                 </div>
-                 <ul className="space-y-1 ml-4">
-                   <li>• Manuscript file (.doc, .docx, .pdf)</li>
-                 </ul>
-               </div>
-               <div>
-                 <div className="flex items-center gap-2 mb-1">
-                   <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                   <strong>Optional:</strong>
-                 </div>
-                 <ul className="space-y-1 ml-4">
-                   <li>• Cover letter</li>
-                   <li>• Supplementary files</li>
-                 </ul>
-               </div>
-             </div>
-           </AlertDescription>
-         </Alert>
-
-         {/* File Upload Progress */}
-         <div className="bg-gray-50 p-4 rounded-lg">
-           <h4 className="font-medium mb-3">Upload Status</h4>
-           <div className="space-y-3">
-             <div className="flex items-center justify-between">
-               <span className="text-sm">Manuscript File:</span>
-               <span className={`text-sm font-medium ${
-                 submissionData.manuscriptFile ? 'text-green-600' : 'text-red-600'
-               }`}>
-                 {submissionData.manuscriptFile ? '✓ Uploaded' : '✗ Required'}
-               </span>
-             </div>
-             <div className="flex items-center justify-between">
-               <span className="text-sm">Cover Letter:</span>
-               <span className={`text-sm font-medium ${
-                 submissionData.coverLetter ? 'text-green-600' : 'text-gray-500'
-               }`}>
-                 {submissionData.coverLetter ? '✓ Uploaded' : 'Optional'}
-               </span>
-             </div>
-             <div className="flex items-center justify-between">
-               <span className="text-sm">Supplementary Files:</span>
-               <span className="text-sm font-medium text-gray-600">
-                 {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').length} uploaded
-               </span>
-             </div>
-           </div>
-         </div>
-      
-             <div>
-         <Label htmlFor="manuscript">Manuscript File *</Label>
-         <div className="mt-2">
-           <Input
-             id="manuscript"
-             type="file"
-             accept=".doc,.docx,.pdf"
-             onChange={(e) => handleFileUpload("manuscriptFile", e.target.files?.[0] || null)}
-             className={errors.manuscriptFile ? "border-red-500" : ""}
-             disabled={uploading}
-             required
-           />
-         </div>
-         {errors.manuscriptFile && <p className="text-red-500 text-sm mt-1">{errors.manuscriptFile}</p>}
-         <p className="text-sm text-gray-500 mt-1">Accepted formats: .doc, .docx, .pdf</p>
-         {submissionData.manuscriptFile && (
-           <p className="text-sm text-green-600 mt-1">✓ {submissionData.manuscriptFile.name} uploaded</p>
-         )}
-       </div>
-
-             <div>
-         <Label htmlFor="coverLetter">Cover Letter (Optional)</Label>
-         <div className="mt-2">
-           <Input
-             id="coverLetter"
-             type="file"
-             accept=".doc,.docx,.pdf"
-             onChange={(e) => handleFileUpload("coverLetter", e.target.files?.[0] || null)}
-             className={errors.coverLetter ? "border-red-500" : ""}
-             disabled={uploading}
-           />
-         </div>
-         {errors.coverLetter && <p className="text-red-500 text-sm mt-1">{errors.coverLetter}</p>}
-         <p className="text-sm text-gray-500 mt-1">Include a cover letter explaining your submission</p>
-         {submissionData.coverLetter && (
-           <p className="text-sm text-green-600 mt-1">✓ {submissionData.coverLetter.name} uploaded</p>
-         )}
-       </div>
-
-       <div>
-         <Label htmlFor="supplementary">Supplementary Files (Optional)</Label>
-         <div className="mt-2">
-           <Input
-             id="supplementary"
-             type="file"
-             multiple
-             accept=".doc,.docx,.pdf,.xls,.xlsx,.zip"
-             onChange={(e) => handleMultipleFileUpload(e.target.files)}
-             disabled={uploading}
-           />
-         </div>
-         <p className="text-sm text-gray-500 mt-1">Additional files, figures, data sets, etc.</p>
-         
-         {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').length > 0 && (
-           <div className="mt-4">
-             <h4 className="font-medium mb-2">Uploaded Supplementary Files:</h4>
-             <div className="space-y-2">
-               {submissionData.uploadedFiles.filter(f => f.type === 'supplementary').map((file, index) => (
-                 <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                   <span className="text-sm">✓ {file.name}</span>
-                   <Button
-                     onClick={() => setSubmissionData(prev => ({
-                       ...prev,
-                       uploadedFiles: prev.uploadedFiles.filter((_, i) => i !== index)
-                     }))}
-                     variant="outline"
-                     size="sm"
-                     type="button"
-                   >
-                     <X className="h-4 w-4" />
-                   </Button>
-                 </div>
-               ))}
-             </div>
-           </div>
-         )}
-       </div>
-    </div>
-  )
-
-  const renderStep5 = () => (
-    <div className="space-y-6">
-      <div>
-        <Label htmlFor="funding">Funding Information</Label>
-        <Textarea
-          id="funding"
-          value={submissionData.funding}
-          onChange={(e) => setSubmissionData(prev => ({ ...prev, funding: e.target.value }))}
-          placeholder="Describe any funding sources for this research"
-          rows={3}
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="acknowledgments">Acknowledgments</Label>
-        <Textarea
-          id="acknowledgments"
-          value={submissionData.acknowledgments}
-          onChange={(e) => setSubmissionData(prev => ({ ...prev, acknowledgments: e.target.value }))}
-          placeholder="Acknowledge individuals or organizations who contributed to this work"
-          rows={3}
-        />
-      </div>
-
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Required Declarations</h3>
-        
-        <div className="space-y-3">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="ethicalApproval"
-              checked={submissionData.ethicalApproval}
-              onCheckedChange={(checked) => setSubmissionData(prev => ({ ...prev, ethicalApproval: checked as boolean }))}
-            />
-            <Label htmlFor="ethicalApproval" className="text-sm">
-              I confirm that this research has received appropriate ethical approval where required
-            </Label>
-          </div>
-          {errors.ethicalApproval && <p className="text-red-500 text-sm">{errors.ethicalApproval}</p>}
-
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="conflictOfInterest"
-              checked={submissionData.conflictOfInterest}
-              onCheckedChange={(checked) => setSubmissionData(prev => ({ ...prev, conflictOfInterest: checked as boolean }))}
-            />
-            <Label htmlFor="conflictOfInterest" className="text-sm">
-              I declare no conflicts of interest, or I have disclosed all relevant conflicts
-            </Label>
-          </div>
-          {errors.conflictOfInterest && <p className="text-red-500 text-sm">{errors.conflictOfInterest}</p>}
-
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="dataAvailability"
-              checked={submissionData.dataAvailability}
-              onCheckedChange={(checked) => setSubmissionData(prev => ({ ...prev, dataAvailability: checked as boolean }))}
-            />
-            <Label htmlFor="dataAvailability" className="text-sm">
-              I confirm that data availability statements are accurate and complete
-            </Label>
-          </div>
-          {errors.dataAvailability && <p className="text-red-500 text-sm">{errors.dataAvailability}</p>}
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const steps = [
-    { number: 1, title: "Manuscript Details", icon: <FileText className="h-5 w-5" /> },
-    { number: 2, title: "Authors", icon: <Plus className="h-5 w-5" /> },
-    { number: 3, title: "Recommended Reviewers", icon: <User className="h-5 w-5" /> },
-    { number: 4, title: "Files", icon: <Upload className="h-5 w-5" /> },
-    { number: 5, title: "Declarations", icon: <CheckCircle className="h-5 w-5" /> }
+    { number: 1, title: "Research Paper Information", description: "Basic details about your submission" },
+    { number: 2, title: "Authors & Affiliations", description: "Author information and institutional details" },
+    { number: 3, title: "Recommended Reviewers", description: "Suggest qualified reviewers for your manuscript" },
+    { number: 4, title: "Files & Documents", description: "Upload your manuscript and supporting files" },
+    { number: 5, title: "Review & Submit", description: "Final review before submission" },
+  ]
+
+  const categories = [
+    // Applied Sciences
+    "Chemical Engineering", "Materials Science", "Bioengineering", "Food Science", "Applied Physics",
+    "Industrial Engineering", "Mechanical Engineering", "Civil Engineering", "Electrical Engineering",
+    
+    // Life Sciences
+    "Biology", "Molecular Biology", "Cell Biology", "Genetics", "Biochemistry", "Microbiology",
+    "Ecology", "Botany", "Zoology", "Marine Biology", "Evolutionary Biology", "Neuroscience",
+    
+    // Medicine & Health Sciences
+    "Clinical Medicine", "Public Health", "Biomedical Sciences", "Healthcare Technology",
+    "Medical Education", "Global Health", "Preventive Medicine", "Medical Ethics",
+    "Cardiology", "Oncology", "Neurology", "Pediatrics", "Surgery", "Internal Medicine",
+    
+    // Physical Sciences
+    "Physics", "Chemistry", "Astronomy", "Geology", "Meteorology", "Oceanography",
+    "Materials Physics", "Theoretical Physics", "Quantum Physics", "Nuclear Physics",
+    
+    // Engineering & Technology
+    "Software Engineering", "Computer Engineering", "Aerospace Engineering", "Environmental Engineering",
+    "Petroleum Engineering", "Mining Engineering", "Nuclear Engineering", "Robotics",
+    
+    // Social Sciences
+    "Psychology", "Sociology", "Anthropology", "Political Science", "Economics", "Geography",
+    "Linguistics", "Archaeology", "Criminology", "International Relations",
+    
+    // Humanities
+    "History", "Philosophy", "Literature", "Art History", "Cultural Studies", "Religious Studies",
+    "Ethics", "Comparative Literature", "Classical Studies", "Modern Languages",
+    
+    // Business & Economics
+    "Finance", "Marketing", "Management", "Accounting", "Operations Research", "Entrepreneurship",
+    "Business Strategy", "Human Resources", "Supply Chain Management", "International Business",
+    
+    // Environmental Sciences
+    "Environmental Chemistry", "Conservation Biology", "Climate Science", "Environmental Policy",
+    "Sustainable Development", "Renewable Energy", "Waste Management",
+    
+    // Computer Science
+    "Artificial Intelligence", "Machine Learning", "Data Science", "Cybersecurity", "Software Development",
+    "Human-Computer Interaction", "Computer Graphics", "Database Systems", "Network Security",
+    
+    // Mathematics
+    "Pure Mathematics", "Applied Mathematics", "Statistics", "Mathematical Modeling", "Operations Research",
+    "Numerical Analysis", "Probability Theory", "Discrete Mathematics", "Computational Mathematics",
+    
+    // Education
+    "Educational Psychology", "Curriculum Development", "Educational Technology", "Special Education",
+    "Higher Education", "Early Childhood Education", "Educational Policy", "Language Education",
+    
+    // Fine Arts & Architecture
+    "Visual Arts", "Performing Arts", "Music Theory", "Art History", "Architecture", "Urban Planning",
+    "Interior Design", "Landscape Architecture", "Digital Arts", "Film Studies"
   ]
 
   return (
-    <RouteGuard allowedRoles={["author"]}>
-      <AuthorLayout>
-        <div className="space-y-8">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="container mx-auto px-4 max-w-4xl">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Submit Your Research Paper</h1>
+          <p className="text-gray-600">Share your research with the global academic community</p>
+        </div>
+
+        {/* Profile Completeness Warning */}
+        {!profileLoading && false && ( /* TEMPORARILY DISABLED: profileCompleteness < 80 */
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Submit Manuscript
-            </h1>
+            <Alert className="border-orange-200 bg-orange-50">
+              <User className="h-5 w-5 text-orange-600" />
+              <div className="ml-3">
+                <h3 className="text-lg font-semibold text-orange-800 mb-2">
+                  Complete Your Profile Before Submitting
+                </h3>
+                <div className="text-orange-700 space-y-3">
+                  <p>
+                    Your profile is only <span className="font-bold">{profileCompleteness}% complete</span>. 
+                    You need at least 80% profile completion to submit research papers.
+                  </p>
+                  
+                  <div className="bg-orange-100 p-4 rounded-lg border border-orange-200">
+                    <h4 className="font-semibold mb-3">Complete these profile sections:</h4>
+                    <div className="grid md:grid-cols-2 gap-3 text-sm">
+                      {!profileData?.name && (
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                          <span>Full name required</span>
+                        </div>
+                      )}
+                      {!profileData?.affiliation && (
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                          <span>Institutional affiliation</span>
+                        </div>
+                      )}
+                      {(!profileData?.bio || profileData.bio.length < 50) && (
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                          <span>Professional biography (50+ chars)</span>
+                        </div>
+                      )}
+                      {!profileData?.orcid && (
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                          <span>ORCID identifier</span>
+                        </div>
+                      )}
+                      {(!profileData?.expertise || profileData.expertise.length === 0) && (
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                          <span>Areas of expertise</span>
+                        </div>
+                      )}
+                      {(!profileData?.specializations || profileData.specializations.length === 0) && (
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                          <span>Academic specializations</span>
+                        </div>
+                      )}
+                      {(!profileData?.researchInterests || profileData.researchInterests.length === 0) && (
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                          <span>Research interests</span>
+                        </div>
+                      )}
+                      {(!profileData?.languagesSpoken || profileData.languagesSpoken.length === 0) && (
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                          <span>Languages spoken</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 pt-2">
+                    <Button 
+                      onClick={() => router.push('/dashboard/profile')}
+                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Complete Profile Now
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        setProfileLoading(true)
+                        // Refresh profile completeness
+                        fetch('/api/submission/eligibility')
+                          .then(res => res.json())
+                          .then(data => {
+                            if (data.success) {
+                              setProfileCompleteness(data.eligibility.score)
+                            }
+                          })
+                          .finally(() => setProfileLoading(false))
+                      }}
+                      variant="outline"
+                      className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh Status
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <div className="w-32 bg-orange-200 rounded-full h-2">
+                        <div 
+                          className="bg-orange-600 h-2 rounded-full transition-all duration-300" 
+                          style={{ width: `${profileCompleteness}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm font-medium">{profileCompleteness}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Alert>
+          </div>
+        )}
+
+        {/* Disable form if profile incomplete */}
+        {!profileLoading && false && ( /* TEMPORARILY DISABLED: profileCompleteness < 80 */
+          <div className="mb-8 p-6 bg-gray-100 border border-gray-300 rounded-lg text-center">
+            <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">Submission Temporarily Disabled</h3>
             <p className="text-gray-600">
-              Complete the form below to submit your manuscript for review
+              Please complete your profile to enable research paper submissions. This ensures we have all 
+              necessary information for the peer review process and author communications.
             </p>
           </div>
+        )}
 
-          
+        {/* Show form only if profile is complete enough */}
+        {(profileLoading || true) && (
+          <>
+            {/* Submission Guidelines Warning */}
+            <div className="mb-8">
+              <Alert className="border-red-200 bg-red-50">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <div className="ml-3">
+                  <h3 className="text-lg font-semibold text-red-800 mb-2">
+                    ⚠️ Important: Submission Guidelines Compliance Required
+                  </h3>
+              <div className="text-red-700 space-y-2">
+                <p className="font-medium">
+                  Manuscripts that do not follow the submission guidelines and formatting requirements will be rejected without review.
+                </p>
+                <div className="bg-red-100 p-4 rounded-lg border border-red-200">
+                  <h4 className="font-semibold mb-2">Before submitting, ensure your manuscript includes:</h4>
+                  <ul className="space-y-1 text-sm">
+                    <li>✓ Proper formatting according to journal standards</li>
+                    <li>✓ Complete author information for all contributors</li>
+                    <li>✓ Abstract at least 250 words minimum</li>
+                    <li>✓ Appropriate keywords (4-8 keywords)</li>
+                    <li>✓ Proper citation format and reference list</li>
+                    <li>✓ Required sections: Introduction, Methods, Results, Discussion, Conclusion</li>
+                    <li>✓ High-quality figures and tables with proper captions</li>
+                    <li>✓ Ethics approval documentation (if applicable)</li>
+                    <li>✓ Conflict of interest declaration</li>
+                    <li>✓ Funding information</li>
+                  </ul>
+                </div>
+                <div className="flex items-center gap-4 pt-2">
+                  <Link 
+                    href="/submission-guidelines" 
+                    className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Read Full Guidelines
+                  </Link>
+                  <Link 
+                    href="/manuscript-template" 
+                    className="inline-flex items-center px-4 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Download Template
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </Alert>
+        </div>
 
-      {/* Progress Steps */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          {steps.map((step, index) => (
-            <div key={step.number} className="flex items-center">
-              <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                currentStep >= step.number 
-                  ? "bg-blue-600 border-blue-600 text-white" 
-                  : "border-gray-300 text-gray-500"
-              }`}>
-                {currentStep > step.number ? (
-                  <CheckCircle className="h-5 w-5" />
-                ) : (
-                  step.icon
+        {/* Progress Steps */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center">
+            {steps.map((step, index) => (
+              <div key={step.number} className="flex items-center">
+                <div
+                  className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                    currentStep >= step.number
+                      ? "bg-blue-600 border-blue-600 text-white"
+                      : "border-gray-300 text-gray-400"
+                  }`}
+                >
+                  {currentStep > step.number ? <CheckCircle className="h-5 w-5" /> : step.number}
+                </div>
+                {index < steps.length - 1 && (
+                  <div className={`w-full h-0.5 mx-4 ${currentStep > step.number ? "bg-blue-600" : "bg-gray-300"}`} />
                 )}
               </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900">Step {step.number}</p>
-                <p className="text-xs text-gray-500">{step.title}</p>
+            ))}
+          </div>
+          <div className="flex justify-between mt-2">
+            {steps.map((step) => (
+              <div key={step.number} className="text-center max-w-[200px]">
+                <div className="font-medium text-sm text-gray-800">{step.title}</div>
+                <div className="text-xs text-gray-500">{step.description}</div>
               </div>
-              {index < steps.length - 1 && (
-                <div className={`w-16 h-0.5 mx-4 ${
-                  currentStep > step.number ? "bg-blue-600" : "bg-gray-300"
-                }`} />
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Form Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {steps[currentStep - 1].icon}
-            {steps[currentStep - 1].title}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {currentStep === 1 && renderStep1()}
-          {currentStep === 2 && renderStep2()}
-          {currentStep === 3 && renderStep3()}
-          {currentStep === 4 && renderStep4()}
-          {currentStep === 5 && renderStep5()}
+        {/* Step Content */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{steps[currentStep - 1].title}</CardTitle>
+            <CardDescription>{steps[currentStep - 1].description}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {submissionError && currentStep < 5 && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{submissionError}</AlertDescription>
+              </Alert>
+            )}
+            
+            {currentStep === 1 && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Manuscript Title *</Label>
+                    <Input 
+                      id="title" 
+                      placeholder="Enter your manuscript title (min. 10 characters)" 
+                      value={formData.title}
+                      onChange={(e) => handleFormChange('title', e.target.value)}
+                    />
+                    <p className="text-sm text-gray-500">
+                      <span className={formData.title.length >= 10 ? "text-green-600" : "text-red-500"}>
+                        {formData.title.length}/10 characters minimum
+                      </span>
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Research Field *</Label>
+                    <Select value={formData.category} onValueChange={(value) => handleFormChange('category', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select research field" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category} value={category.toLowerCase().replace(/\s+/g, "-")}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-8">
-            <Button
-              onClick={prevStep}
-              variant="outline"
-              disabled={currentStep === 1 || loading || uploading}
-            >
-              Previous
-            </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="abstract">Abstract *</Label>
+                  <Textarea
+                    id="abstract"
+                    placeholder="Provide a structured abstract (minimum 250 characters)"
+                    className="min-h-[120px]"
+                    value={formData.abstract}
+                    onChange={(e) => handleFormChange('abstract', e.target.value)}
+                  />
+                  <p className="text-sm text-gray-500">
+                    <span className={formData.abstract.length >= 250 ? "text-green-600" : "text-red-500"}>
+                      {formData.abstract.length}/250 characters minimum
+                    </span>
+                  </p>
+                </div>
 
-            <div className="flex gap-2">
+                <div className="space-y-2">
+                  <Label htmlFor="keywords">Keywords *</Label>
+                  <Input 
+                    id="keywords" 
+                    placeholder="Enter at least 3 keywords separated by commas" 
+                    value={formData.keywords}
+                    onChange={(e) => handleFormChange('keywords', e.target.value)}
+                  />
+                  <p className="text-sm text-gray-500">
+                    <span className={
+                      formData.keywords 
+                        ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean).length >= 3 
+                          ? "text-green-600" 
+                          : "text-red-500"
+                        : "text-red-500"
+                    }>
+                      {formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean).length : 0}/3 keywords minimum
+                    </span>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="funding">Grant Information</Label>
+                    <Input 
+                      id="funding" 
+                      placeholder="Grant numbers, sponsoring organizations" 
+                      value={formData.funding}
+                      onChange={(e) => handleFormChange('funding', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="conflicts">Conflicts of Interest</Label>
+                    <Select value={formData.conflicts} onValueChange={(value) => handleFormChange('conflicts', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select option" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No conflicts to declare</SelectItem>
+                        <SelectItem value="financial">Financial conflicts</SelectItem>
+                        <SelectItem value="other">Other conflicts</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {currentStep === 2 && (
+              <>
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Please provide comprehensive information for all authors. Exactly one author must be designated as the corresponding author who will receive all communications.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-6">
+                  {formData.authors.map((author, index) => (
+                    <div key={index} className={`border rounded-lg p-4 ${author.isCorrespondingAuthor ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold flex items-center gap-2">
+                          Author {index + 1}
+                          {author.isCorrespondingAuthor && (
+                            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                              Corresponding Author
+                            </span>
+                          )}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          {!author.isCorrespondingAuthor && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSetCorrespondingAuthor(index)}
+                            >
+                              Set as Corresponding
+                            </Button>
+                          )}
+                          {formData.authors.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRemoveAuthor(index)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor={`author${index}-first`}>First Name *</Label>
+                          <Input 
+                            id={`author${index}-first`} 
+                            value={author.firstName}
+                            onChange={(e) => handleUpdateAuthor(index, 'firstName', e.target.value)}
+                            placeholder="Enter first name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`author${index}-last`}>Last Name *</Label>
+                          <Input 
+                            id={`author${index}-last`} 
+                            value={author.lastName}
+                            onChange={(e) => handleUpdateAuthor(index, 'lastName', e.target.value)}
+                            placeholder="Enter last name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`author${index}-email`}>Email Address *</Label>
+                          <Input 
+                            id={`author${index}-email`} 
+                            type="email" 
+                            value={author.email}
+                            onChange={(e) => handleUpdateAuthor(index, 'email', e.target.value)}
+                            placeholder="author@institution.edu"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`author${index}-orcid`}>ORCID ID</Label>
+                          <Input 
+                            id={`author${index}-orcid`} 
+                            placeholder="0000-0000-0000-0000" 
+                            value={author.orcid}
+                            onChange={(e) => handleUpdateAuthor(index, 'orcid', e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`author${index}-institution`}>Institution *</Label>
+                          <Input 
+                            id={`author${index}-institution`} 
+                            value={author.institution}
+                            onChange={(e) => handleUpdateAuthor(index, 'institution', e.target.value)}
+                            placeholder="University or Research Institution"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`author${index}-department`}>Department *</Label>
+                          <Input 
+                            id={`author${index}-department`} 
+                            value={author.department}
+                            onChange={(e) => handleUpdateAuthor(index, 'department', e.target.value)}
+                            placeholder="Department or School"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`author${index}-country`}>Country *</Label>
+                          <Select 
+                            value={author.country} 
+                            onValueChange={(value) => handleUpdateAuthor(index, 'country', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select country" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Afghanistan">Afghanistan</SelectItem>
+                              <SelectItem value="Albania">Albania</SelectItem>
+                              <SelectItem value="Algeria">Algeria</SelectItem>
+                              <SelectItem value="Argentina">Argentina</SelectItem>
+                              <SelectItem value="Australia">Australia</SelectItem>
+                              <SelectItem value="Austria">Austria</SelectItem>
+                              <SelectItem value="Bangladesh">Bangladesh</SelectItem>
+                              <SelectItem value="Belgium">Belgium</SelectItem>
+                              <SelectItem value="Brazil">Brazil</SelectItem>
+                              <SelectItem value="Canada">Canada</SelectItem>
+                              <SelectItem value="China">China</SelectItem>
+                              <SelectItem value="Denmark">Denmark</SelectItem>
+                              <SelectItem value="Egypt">Egypt</SelectItem>
+                              <SelectItem value="Finland">Finland</SelectItem>
+                              <SelectItem value="France">France</SelectItem>
+                              <SelectItem value="Germany">Germany</SelectItem>
+                              <SelectItem value="Ghana">Ghana</SelectItem>
+                              <SelectItem value="Greece">Greece</SelectItem>
+                              <SelectItem value="India">India</SelectItem>
+                              <SelectItem value="Indonesia">Indonesia</SelectItem>
+                              <SelectItem value="Ireland">Ireland</SelectItem>
+                              <SelectItem value="Israel">Israel</SelectItem>
+                              <SelectItem value="Italy">Italy</SelectItem>
+                              <SelectItem value="Japan">Japan</SelectItem>
+                              <SelectItem value="Kenya">Kenya</SelectItem>
+                              <SelectItem value="Malaysia">Malaysia</SelectItem>
+                              <SelectItem value="Mexico">Mexico</SelectItem>
+                              <SelectItem value="Netherlands">Netherlands</SelectItem>
+                              <SelectItem value="New Zealand">New Zealand</SelectItem>
+                              <SelectItem value="Nigeria">Nigeria</SelectItem>
+                              <SelectItem value="Norway">Norway</SelectItem>
+                              <SelectItem value="Pakistan">Pakistan</SelectItem>
+                              <SelectItem value="Poland">Poland</SelectItem>
+                              <SelectItem value="Portugal">Portugal</SelectItem>
+                              <SelectItem value="Russia">Russia</SelectItem>
+                              <SelectItem value="Saudi Arabia">Saudi Arabia</SelectItem>
+                              <SelectItem value="Singapore">Singapore</SelectItem>
+                              <SelectItem value="South Africa">South Africa</SelectItem>
+                              <SelectItem value="South Korea">South Korea</SelectItem>
+                              <SelectItem value="Spain">Spain</SelectItem>
+                              <SelectItem value="Sweden">Sweden</SelectItem>
+                              <SelectItem value="Switzerland">Switzerland</SelectItem>
+                              <SelectItem value="Thailand">Thailand</SelectItem>
+                              <SelectItem value="Turkey">Turkey</SelectItem>
+                              <SelectItem value="Ukraine">Ukraine</SelectItem>
+                              <SelectItem value="United Arab Emirates">United Arab Emirates</SelectItem>
+                              <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                              <SelectItem value="United States">United States</SelectItem>
+                              <SelectItem value="Vietnam">Vietnam</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`author${index}-affiliation`}>Full Affiliation *</Label>
+                          <Input 
+                            id={`author${index}-affiliation`} 
+                            value={author.affiliation}
+                            onChange={(e) => handleUpdateAuthor(index, 'affiliation', e.target.value)}
+                            placeholder="Complete institutional affiliation"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <Button variant="outline" className="w-full" onClick={handleAddAuthor}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Author
+                  </Button>
+
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-sm mb-2">Author Summary</h4>
+                    <div className="text-sm text-gray-600">
+                      <p>Total Authors: {formData.authors.length}</p>
+                      <p>Corresponding Author: {formData.authors.find(a => a.isCorrespondingAuthor)?.firstName} {formData.authors.find(a => a.isCorrespondingAuthor)?.lastName || "Not designated"}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {currentStep === 3 && (
+              <>
+                <div className="space-y-6">
+                  <Alert className="border-blue-200 bg-blue-50">
+                    <AlertCircle className="h-5 w-5 text-blue-600" />
+                    <AlertDescription>
+                      <div className="text-blue-800">
+                        <h4 className="font-semibold mb-2">📝 Recommended Reviewers Guidelines</h4>
+                        <p className="text-sm mb-2">
+                          Please suggest a minimum of <strong>3 qualified reviewers</strong> who can evaluate your manuscript. 
+                          These should be experts in your field who are not co-authors and have no conflicts of interest.
+                        </p>
+                        <ul className="text-sm space-y-1">
+                          <li>• Choose reviewers who are familiar with your research area</li>
+                          <li>• Ensure suggested reviewers have recent publications in relevant journals</li>
+                          <li>• Avoid recommending close collaborators or colleagues from your institution</li>
+                          <li>• Include reviewers from different institutions and countries when possible</li>
+                          <li>• Provide accurate contact information and affiliations</li>
+                        </ul>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <User className="h-5 w-5" />
+                        Recommended Reviewers
+                        <Badge variant="secondary">Minimum 3 Required</Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        Suggest qualified experts to review your manuscript
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {formData.recommendedReviewers.map((reviewer, index) => (
+                        <Card key={index} className="border-gray-200">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-lg">Reviewer {index + 1}</CardTitle>
+                              {formData.recommendedReviewers.length > 3 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRemoveRecommendedReviewer(index)}
+                                  className="text-red-600 border-red-200 hover:bg-red-50"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor={`reviewer-${index}-name`} className="text-sm font-medium">
+                                  Full Name *
+                                </Label>
+                                <Input
+                                  id={`reviewer-${index}-name`}
+                                  value={reviewer.name}
+                                  onChange={(e) => handleUpdateRecommendedReviewer(index, 'name', e.target.value)}
+                                  placeholder="Dr. John Smith"
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`reviewer-${index}-email`} className="text-sm font-medium">
+                                  Email Address *
+                                </Label>
+                                <Input
+                                  id={`reviewer-${index}-email`}
+                                  type="email"
+                                  value={reviewer.email}
+                                  onChange={(e) => handleUpdateRecommendedReviewer(index, 'email', e.target.value)}
+                                  placeholder="john.smith@university.edu"
+                                  className="mt-1"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label htmlFor={`reviewer-${index}-affiliation`} className="text-sm font-medium">
+                                Affiliation *
+                              </Label>
+                              <Input
+                                id={`reviewer-${index}-affiliation`}
+                                value={reviewer.affiliation}
+                                onChange={(e) => handleUpdateRecommendedReviewer(index, 'affiliation', e.target.value)}
+                                placeholder="Department of Medicine/Engineering/Science, University of Excellence, Country"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`reviewer-${index}-expertise`} className="text-sm font-medium">
+                                Area of Expertise (Optional)
+                              </Label>
+                              <Input
+                                id={`reviewer-${index}-expertise`}
+                                value={reviewer.expertise}
+                                onChange={(e) => handleUpdateRecommendedReviewer(index, 'expertise', e.target.value)}
+                                placeholder="Medicine, Computer Science, Physics, etc."
+                                className="mt-1"
+                              />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleAddRecommendedReviewer}
+                        className="w-full border-dashed border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Another Reviewer
+                      </Button>
+
+                      <Alert className="border-amber-200 bg-amber-50">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        <AlertDescription className="text-amber-800">
+                          <strong>Important:</strong> The editorial team reserves the right to use additional reviewers 
+                          beyond those you recommend. Your suggestions will be considered but are not guaranteed to be selected.
+                        </AlertDescription>
+                      </Alert>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
+
+            {currentStep === 4 && (
+              <div className="space-y-6">
+                <FormValidationIndicator
+                  title={formData.title}
+                  abstract={formData.abstract}
+                  category={formData.category}
+                  keywords={formData.keywords}
+                  authors={formData.authors}
+                  currentStep={currentStep}
+                />
+                
+                <FileUploadSection
+                  uploadedFiles={uploadedFiles}
+                  onFileUpload={handleFileUpload}
+                  onFileRemove={removeFile}
+                  uploadProgress={uploadProgress}
+                />
+              </div>
+            )}
+
+            {currentStep === 5 && (
+              <>
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Please review all information before submitting. You will receive a confirmation email once your
+                    submission is processed.
+                  </AlertDescription>
+                </Alert>
+
+                {submissionError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{submissionError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Submission Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Title:</span>
+                        <span className="font-medium">
+                          {formData.title || "Not provided"}
+                          {formData.title && (
+                            <span className={`ml-2 text-xs ${formData.title.length >= 10 ? 'text-green-600' : 'text-red-500'}`}>
+                              ({formData.title.length} chars)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Abstract:</span>
+                        <span className="font-medium">
+                          {formData.abstract ? `${formData.abstract.substring(0, 30)}...` : "Not provided"}
+                          {formData.abstract && (
+                            <span className={`ml-2 text-xs ${formData.abstract.length >= 250 ? 'text-green-600' : 'text-red-500'}`}>
+                              ({formData.abstract.length} chars)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Category:</span>
+                        <span className="font-medium">{formData.category || "Not selected"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Authors:</span>
+                        <span className="font-medium">{formData.authors.length} author{formData.authors.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Corresponding Author:</span>
+                        <span className="font-medium">
+                          {(() => {
+                            const correspondingAuthor = formData.authors.find(a => a.isCorrespondingAuthor)
+                            return correspondingAuthor 
+                              ? `${correspondingAuthor.firstName} ${correspondingAuthor.lastName} (${correspondingAuthor.email})`
+                              : "Not designated"
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Keywords:</span>
+                        <span className="font-medium">
+                          {formData.keywords ? formData.keywords.split(',').length : 0} keywords
+                          {formData.keywords && (
+                            <span className={`ml-2 text-xs ${
+                              formData.keywords.split(',').map(k => k.trim()).filter(Boolean).length >= 3 
+                                ? 'text-green-600' 
+                                : 'text-red-500'
+                            }`}>
+                              ({formData.keywords.split(',').map(k => k.trim()).filter(Boolean).length} valid)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="terms" 
+                      checked={formData.termsAccepted}
+                      onCheckedChange={(checked) => handleFormChange('termsAccepted', checked)}
+                    />
+                    <Label htmlFor="terms" className="text-sm">
+                      I agree to the{" "}
+                      <Link href="/terms" className="text-blue-600 hover:underline">
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link href="/ethics" className="text-blue-600 hover:underline">
+                        Publication Ethics
+                      </Link>
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="guidelines" 
+                      checked={formData.guidelinesAccepted}
+                      onCheckedChange={(checked) => handleFormChange('guidelinesAccepted', checked)}
+                    />
+                    <Label htmlFor="guidelines" className="text-sm font-medium">
+                      <span className="text-red-600">*</span> I confirm that my manuscript follows all{" "}
+                      <Link href="/submission-guidelines" className="text-blue-600 hover:underline font-semibold">
+                        submission guidelines and formatting requirements
+                      </Link>
+                      . I understand that manuscripts not meeting these requirements will be rejected without review.
+                    </Label>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Navigation Buttons */}
+            <div className="flex justify-between pt-6 border-t">
+              <Button
+                variant="outline"
+                onClick={handlePreviousStep}
+                disabled={currentStep === 1}
+              >
+                Previous
+              </Button>
+
               {currentStep < 5 ? (
-                <Button onClick={nextStep} disabled={loading || uploading}>
-                  Next
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                <Button
+                  onClick={handleNextStep}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Next Step
                 </Button>
               ) : (
                 <Button 
-                  onClick={handleSubmit} 
-                  className="bg-green-600 hover:bg-green-700"
-                  disabled={loading || uploading}
+                  className="bg-green-600 hover:bg-green-700 disabled:opacity-50" 
+                  onClick={handleSubmitManuscript}
+                  disabled={
+                    isSubmitting || 
+                    !formData.termsAccepted ||
+                    !formData.guidelinesAccepted ||
+                    formData.title.length < 10 ||
+                    formData.abstract.length < 250 ||
+                    !formData.category ||
+                    (formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean).length < 3 : true)
+                  }
                 >
-                  {loading ? "Submitting..." : uploading ? "Uploading Files..." : "Submit Manuscript"}
+                  <FileText className="h-4 w-4 mr-2" />
+                  {isSubmitting ? "Submitting..." : "Submit Research Paper"}
                 </Button>
               )}
             </div>
-          </div>
-        </CardContent>
-      </Card>
-        </div>
-      </AuthorLayout>
-    </RouteGuard>
+          </CardContent>
+        </Card>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function SubmitPage() {
+  return (
+    <AuthorLayout>
+      <SubmitPageContent />
+    </AuthorLayout>
   )
 }

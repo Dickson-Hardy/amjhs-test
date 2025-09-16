@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "../../auth/[...nextauth]/route"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { logger } from "@/lib/logger"
 import { writeFile } from "fs/promises"
 import { join } from "path"
 
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
       filename,
     })
   } catch (error) {
-    logger.error("Error uploading file:", error)
+    logger.error("Error uploading file", { error: error instanceof Error ? error.message : String(error) })
     return NextResponse.json(
       { error: "Failed to upload file" },
       { status: 500 }

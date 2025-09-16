@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { z } from "zod"
 import * as crypto from "crypto"
-import { requireAuth, ROLES } from "@/lib/api-utils"
+import { requireAuth, ROLES, Role } from "@/lib/api-utils"
 import {
   createApiResponse,
   createErrorResponse,
@@ -19,33 +19,37 @@ const querySchema = z.object({
   submissionId: z.string().optional(),
 })
 
-// Workflow submission schema
+// Workflow submission schema - aligned with frontend data structure
 const workflowSubmissionSchema = z.object({
   articleData: z.object({
-    title: z.string().min(1),
-    abstract: z.string().min(100),
-    keywords: z.array(z.string()).min(3),
-    category: z.string(),
+    title: z.string().min(10, "Title must be at least 10 characters long"),
+    abstract: z.string().min(250, "Abstract must be at least 250 words"), // Aligned with frontend requirement
+    keywords: z.array(z.string()).min(3, "At least 3 keywords required"), // Relaxed to match backend logic
+    category: z.string().min(1, "Category is required"),
     authors: z.array(z.object({
-      firstName: z.string(),
-      lastName: z.string(),
-      email: z.string().email(),
+      firstName: z.string().min(1, "First name is required"),
+      lastName: z.string().min(1, "Last name is required"),
+      email: z.string().email("Valid email is required"),
       affiliation: z.string().optional(),
       orcid: z.string().optional(),
       isCorrespondingAuthor: z.boolean().default(false)
-    })),
+    })).min(1, "At least one author is required"),
     files: z.array(z.object({
       url: z.string(),
       type: z.string(),
       name: z.string(),
-      fileId: z.string()
+      fileId: z.string(),
+      // Additional fields sent by frontend (will be ignored by workflow manager)
+      size: z.number().optional(),
+      contentType: z.string().optional(),
+      cloudinaryPublicId: z.string().optional()
     })).optional(),
     recommendedReviewers: z.array(z.object({
-      name: z.string(),
-      email: z.string().email(),
-      affiliation: z.string(),
-      expertise: z.string()
-    })).optional(),
+      name: z.string().min(1, "Reviewer name is required"),
+      email: z.string().email("Valid reviewer email is required"),
+      affiliation: z.string().min(1, "Reviewer affiliation is required"),
+      expertise: z.string().optional() // Made optional since frontend sends "General expertise" as default
+    })).min(3, "At least 3 recommended reviewers required").optional(), // Made optional at top level but validated when present
     coverLetter: z.string().optional(),
     ethicalApproval: z.boolean().default(false),
     conflictOfInterest: z.boolean().default(false),
@@ -70,13 +74,52 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     })
 
     const body = await request.json()
+    
+    // Pre-validation checks with helpful error messages
+    if (!body.articleData) {
+      throw new Error("Article data is required")
+    }
+
+    // Validate that at least one corresponding author is designated
+    if (body.articleData.authors) {
+      const correspondingAuthors = body.articleData.authors.filter((author: any) => author.isCorrespondingAuthor)
+      if (correspondingAuthors.length === 0) {
+        throw new Error("At least one corresponding author must be designated")
+      }
+      if (correspondingAuthors.length > 1) {
+        throw new Error("Only one corresponding author is allowed")
+      }
+    }
+
+    // Validate recommended reviewers if provided
+    if (body.articleData.recommendedReviewers && body.articleData.recommendedReviewers.length > 0) {
+      const validReviewers = body.articleData.recommendedReviewers.filter((reviewer: any) => 
+        reviewer.name?.trim() && reviewer.email?.trim() && reviewer.affiliation?.trim()
+      )
+      if (validReviewers.length < 3) {
+        throw new Error("At least 3 complete recommended reviewers are required (name, email, and affiliation)")
+      }
+    }
+
     const validatedData = validateRequest(workflowSubmissionSchema, body)
     
     const { articleData, submissionType, previousSubmissionId, revisionNotes } = validatedData
     const authorId = session.user.id
 
+    // Transform file data to match workflow manager expectations
+    const cleanedArticleData = {
+      ...articleData,
+      files: articleData.files?.map(file => ({
+        url: file.url,
+        type: file.type,
+        name: file.name,
+        fileId: file.fileId
+        // Remove extra fields (size, contentType, cloudinaryPublicId) that workflow manager doesn't expect
+      }))
+    }
+
     // Submit article through workflow manager
-    const result = await workflowManager.submitArticle(articleData, authorId)
+    const result = await workflowManager.submitArticle(cleanedArticleData, authorId)
 
     if (!result.success) {
       logger.error("Workflow submission failed", { 
@@ -137,7 +180,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return createApiResponse(
       {
         submissionId: result.submissionId,
-        articleId: result.article?.id,
+        articleId: (result.article as any)?.id,
         workflowStatus: "submitted",
         nextSteps: [
           "Technical check in progress",
@@ -191,7 +234,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }
 
     // Check permissions - user can only see their own submissions unless they're admin/editor
-    if (![ROLES.ADMIN, ROLES.ASSOCIATE_EDITOR].includes(user.role) && 
+    if (![ROLES.ADMIN, ROLES.ASSOCIATE_EDITOR].includes(user.role as Role) && 
         submission.authorId !== user.id) {
       logger.security("Unauthorized workflow status access attempt", {
         requestId,
