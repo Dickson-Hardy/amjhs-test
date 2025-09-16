@@ -89,9 +89,8 @@ export default function AdminUsersPage() {
       console.log('API Response:', data) // Debug log
       
       if (data.success) {
-        // Handle paginated response structure - data is directly in data field, not data.data
-        const usersData = Array.isArray(data.data) ? data.data : []
-        setUsers(usersData)
+        const usersData = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+        setUsers(usersData);
         // Calculate stats from the users data
         const calculatedStats = {
           totalUsers: Array.isArray(usersData) ? usersData.length : 0,
