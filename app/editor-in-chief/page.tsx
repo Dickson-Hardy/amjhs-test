@@ -40,6 +40,7 @@ import {
 
 interface Submission {
   id: string
+  submissionId?: string
   title: string
   author: string
   section: string
@@ -49,6 +50,10 @@ interface Submission {
   assignedEditor: string
   conflictOfInterest: boolean
   needsEICDecision: boolean
+  needsAssociateEditorAssignment?: boolean
+  daysSinceSubmission?: number
+  daysSinceUpdate?: number
+  authorEmail?: string
 }
 
 interface Editor {
@@ -97,7 +102,9 @@ export default function EditorInChiefDashboard() {
   const [appeals, setAppeals] = useState<Appeal[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [selectedSubmissionForAssignment, setSelectedSubmissionForAssignment] = useState<string | null>(null)
   const [selectedSubmission, setSelectedSubmission] = useState<string | null>(null)
+  const [assigningEditor, setAssigningEditor] = useState(false)
 
   useEffect(() => {
     if (session?.user?.role !== "editor-in-chief" && session?.user?.role !== "admin") return
@@ -115,10 +122,10 @@ export default function EditorInChiefDashboard() {
     try {
       setLoading(true)
       
-      // Fetch real data from APIs
+      // Fetch real data from APIs - including new screening workflow status
       const [metricsRes, submissionsRes, editorsRes, appealsRes] = await Promise.all([
         fetch('/api/editor-in-chief/metrics'),
-        fetch('/api/editor-in-chief/submissions?priority=high'),
+        fetch('/api/editor-in-chief/submissions?status=all'), // Get all submissions including editor_in_chief_review
         fetch('/api/editor-in-chief/editors'),
         fetch('/api/editor-in-chief/appeals?status=pending'),
       ])
@@ -133,14 +140,14 @@ export default function EditorInChiefDashboard() {
         logger.error('Failed to fetch metrics:', metricsRes.statusText)
       }
 
-      // Handle submissions requiring attention
+      // Handle submissions requiring attention - including new screening workflow
       if (submissionsRes.ok) {
         const submissionsData = await submissionsRes.json()
         if (submissionsData.success) {
           setSubmissions(submissionsData.submissions)
         }
       } else {
-        logger.error('Failed to fetch submissions:', submissionsRes.statusText)
+        console.error('Failed to fetch submissions:', submissionsRes.statusText)
       }
 
       // Handle editors
@@ -150,7 +157,7 @@ export default function EditorInChiefDashboard() {
           setEditors(editorsData.editors)
         }
       } else {
-        logger.error('Failed to fetch editors:', editorsRes.statusText)
+        console.error('Failed to fetch editors:', editorsRes.statusText)
       }
 
       // Handle appeals
@@ -160,13 +167,46 @@ export default function EditorInChiefDashboard() {
           setAppeals(appealsData.appeals)
         }
       } else {
-        logger.error('Failed to fetch appeals:', appealsRes.statusText)
+        console.error('Failed to fetch appeals:', appealsRes.statusText)
       }
 
     } catch (error) {
-      logger.error('Error fetching EIC dashboard data:', error)
+      console.error('Error fetching EIC dashboard data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAssignAssociateEditor = async (submissionId: string, associateEditorId: string) => {
+    try {
+      setAssigningEditor(true)
+      
+      const response = await fetch('/api/editor-in-chief/editors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          submissionId: submissionId,
+          associateEditorId: associateEditorId,
+          notes: `Assigned by Editor-in-Chief after screening approval`
+        }),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log(`Associate editor assigned successfully:`, result)
+        setSelectedSubmissionForAssignment(null)
+        // Refresh data to show updated status
+        await refreshDashboard()
+      } else {
+        const error = await response.json()
+        console.error('Failed to assign associate editor:', error.error)
+      }
+    } catch (error) {
+      console.error('Error assigning associate editor:', error)
+    } finally {
+      setAssigningEditor(false)
     }
   }
 
@@ -186,14 +226,14 @@ export default function EditorInChiefDashboard() {
       })
 
       if (response.ok) {
-        logger.info(`Final decision made: ${decision} for submission ${submissionId}`)
+        console.log(`Final decision made: ${decision} for submission ${submissionId}`)
         // Refresh data
         await refreshDashboard()
       } else {
-        logger.error('Failed to make decision:', response.statusText)
+        console.error('Failed to make decision:', response.statusText)
       }
     } catch (error) {
-      logger.error('Error making final decision:', error)
+      console.error('Error making final decision:', error)
     }
   }
 
@@ -212,19 +252,21 @@ export default function EditorInChiefDashboard() {
       })
 
       if (response.ok) {
-        logger.info(`Appeal ${decision}: ${appealId}`)
+        console.log(`Appeal ${decision}: ${appealId}`)
         // Refresh data
         await refreshDashboard()
       } else {
-        logger.error('Failed to handle appeal:', response.statusText)
+        console.error('Failed to handle appeal:', response.statusText)
       }
     } catch (error) {
-      logger.error('Error handling appeal:', error)
+      console.error('Error handling appeal:', error)
     }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "editor_in_chief_review":
+        return "bg-purple-100 text-purple-800"
       case "appeal_pending":
         return "bg-red-100 text-red-800"
       case "editor_decision_required":
@@ -348,7 +390,7 @@ export default function EditorInChiefDashboard() {
         {/* EIC Decisions Tab */}
         <TabsContent value="decisions" className="space-y-6">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-800">Submissions Requiring EIC Decision</h2>
+            <h2 className="text-xl font-semibold text-gray-800">Editorial Decisions & Assignments</h2>
             <div className="flex gap-2">
               <Select defaultValue="all">
                 <SelectTrigger className="w-40">
@@ -364,8 +406,78 @@ export default function EditorInChiefDashboard() {
             </div>
           </div>
 
+          {/* Submissions needing associate editor assignment (highest priority) */}
+          {submissions.filter(s => s.needsAssociateEditorAssignment).length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-purple-600" />
+                <h3 className="text-lg font-semibold text-purple-800">
+                  Manuscripts Approved for Review - Assign Associate Editor
+                </h3>
+                <Badge className="bg-purple-100 text-purple-800">
+                  {submissions.filter(s => s.needsAssociateEditorAssignment).length} Ready
+                </Badge>
+              </div>
+              
+              {submissions.filter(s => s.needsAssociateEditorAssignment).map((submission) => (
+                <Card key={submission.id} className="border-l-4 border-l-purple-500 bg-purple-50">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{submission.title}</CardTitle>
+                        <CardDescription>
+                          By {submission.author} • Section: {submission.section} • 
+                          Submitted: {new Date(submission.submittedDate).toLocaleDateString()} •
+                          Days since submission: {submission.daysSinceSubmission || 0}
+                        </CardDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge className="bg-purple-100 text-purple-800">
+                          Screening Passed
+                        </Badge>
+                        <Badge variant="outline">High Priority</Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Alert className="mb-4">
+                      <CheckCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        This manuscript has passed editorial screening and is ready for associate editor assignment and peer review.
+                      </AlertDescription>
+                    </Alert>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">
+                        Status: Ready for Associate Editor Assignment
+                      </span>
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={() => setSelectedSubmissionForAssignment(submission.submissionId || submission.id)}
+                          variant="default"
+                          className="bg-purple-600 hover:bg-purple-700"
+                        >
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Assign Associate Editor
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Regular submissions requiring EIC decisions */}
           <div className="space-y-4">
-            {submissions.filter(s => s.needsEICDecision).map((submission) => (
+            {submissions.filter(s => s.needsAssociateEditorAssignment).length > 0 && (
+              <div className="flex items-center gap-2 pt-6 border-t">
+                <Gavel className="h-5 w-5 text-gray-600" />
+                <h3 className="text-lg font-semibold text-gray-800">Other Submissions Requiring Attention</h3>
+              </div>
+            )}
+            
+            {submissions.filter(s => s.needsEICDecision && !s.needsAssociateEditorAssignment).map((submission) => (
               <Card key={submission.id} className={`border-l-4 ${getPriorityColor(submission.priority)}`}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
@@ -698,6 +810,83 @@ export default function EditorInChiefDashboard() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Associate Editor Assignment Dialog */}
+      {selectedSubmissionForAssignment && (
+        <Dialog open={!!selectedSubmissionForAssignment} onOpenChange={() => setSelectedSubmissionForAssignment(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Assign Associate Editor</DialogTitle>
+              <DialogDescription>
+                Select an associate editor to handle this manuscript that has passed screening.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 max-h-96 overflow-y-auto">
+                {editors
+                  .filter(editor => 
+                    ["associate-editor", "section-editor", "managing-editor"].includes(editor.role) &&
+                    editor.workload < editor.maxWorkload
+                  )
+                  .map((editor) => (
+                    <Card 
+                      key={editor.id} 
+                      className="cursor-pointer hover:border-purple-300 transition-colors"
+                      onClick={() => handleAssignAssociateEditor(selectedSubmissionForAssignment, editor.id)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <h4 className="font-medium">{editor.name}</h4>
+                            <p className="text-sm text-gray-600">{editor.email}</p>
+                            <p className="text-sm text-gray-500">Section: {editor.section}</p>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="outline" className="mb-1">
+                              {editor.role}
+                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="h-2 rounded-full bg-green-500"
+                                  style={{ width: `${Math.min((editor.workload / editor.maxWorkload) * 100, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-xs">{editor.workload}/{editor.maxWorkload}</span>
+                            </div>
+                            <p className="text-xs text-gray-500">Performance: {editor.performance}%</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+              </div>
+              
+              {editors.filter(editor => 
+                ["associate-editor", "section-editor", "managing-editor"].includes(editor.role) &&
+                editor.workload < editor.maxWorkload
+              ).length === 0 && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    No available associate editors found. All editors may be at capacity.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setSelectedSubmissionForAssignment(null)}
+                  disabled={assigningEditor}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
         </div>
       </EditorLayout>
     </RouteGuard>

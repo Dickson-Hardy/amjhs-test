@@ -316,14 +316,14 @@ export default function AdminUsersPage() {
     }
   }
 
-  const filteredUsers = Array.isArray(users) ? users.filter(user => {
+  const filteredUsers = (Array.isArray(users) ? users : []).filter(user => {
     const matchesRole = filterRole === "all" || user.role === filterRole
     const status = getStatusText(user.isActive, user.isVerified).toLowerCase()
     const matchesStatus = filterStatus === "all" || status === filterStatus
     const matchesSearch = (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (user.email || '').toLowerCase().includes(searchTerm.toLowerCase())
     return matchesRole && matchesStatus && matchesSearch
-  }) : []
+  })
 
   if (loading) {
     return (
