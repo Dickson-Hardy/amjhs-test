@@ -84,41 +84,70 @@ export default function AdminUsersPage() {
       setLoading(true)
       
       const response = await fetch('/api/admin/users')
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
       const data = await response.json()
       
       console.log('API Response:', data) // Debug log
       
-      if (data.success) {
-        const usersData = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
-        setUsers(usersData);
-        // Calculate stats from the users data
-        const calculatedStats = {
-          totalUsers: Array.isArray(usersData) ? usersData.length : 0,
-          activeUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.isActive === true).length : 0,
-          pendingUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.isVerified === false).length : 0,
-          adminUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.role === 'admin').length : 0,
-          editorUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.role === 'associate_editor' || u.role === 'editor').length : 0,
-          reviewerUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.role === 'reviewer').length : 0,
-          authorUsers: Array.isArray(usersData) ? usersData.filter((u: User) => u.role === 'author').length : 0,
+      // Handle different possible response structures
+      let usersData: User[] = []
+      
+      if (data && typeof data === 'object') {
+        if (data.success === true) {
+          // Paginated response structure
+          usersData = Array.isArray(data.data) ? data.data : []
+        } else if (Array.isArray(data.data)) {
+          // Direct data property
+          usersData = data.data
+        } else if (Array.isArray(data)) {
+          // Direct array response
+          usersData = data
         }
-        setStats(calculatedStats)
-      } else {
-        console.error('Failed to fetch users:', data.error)
-        // Fallback to empty state
-        setUsers([])
-        setStats({
-          totalUsers: 0,
-          activeUsers: 0,
-          pendingUsers: 0,
-          adminUsers: 0,
-          editorUsers: 0,
-          reviewerUsers: 0,
-          authorUsers: 0,
-        })
       }
+      
+      // Ensure usersData is always an array
+      if (!Array.isArray(usersData)) {
+        console.warn('Users data is not an array, falling back to empty array:', usersData)
+        usersData = []
+      }
+      
+      // Validate and sanitize user data
+      const validUsersData = usersData.filter((user): user is User => {
+        return user && 
+               typeof user === 'object' && 
+               typeof user.id === 'string' &&
+               typeof user.name === 'string' &&
+               typeof user.email === 'string' &&
+               typeof user.role === 'string'
+      })
+      
+      setUsers(validUsersData)
+      
+      // Calculate stats safely
+      const calculatedStats = {
+        totalUsers: validUsersData.length,
+        activeUsers: validUsersData.filter((u: User) => u.isActive === true).length,
+        pendingUsers: validUsersData.filter((u: User) => u.isVerified === false).length,
+        adminUsers: validUsersData.filter((u: User) => u.role === 'admin').length,
+        editorUsers: validUsersData.filter((u: User) => u.role === 'associate_editor' || u.role === 'editor').length,
+        reviewerUsers: validUsersData.filter((u: User) => u.role === 'reviewer').length,
+        authorUsers: validUsersData.filter((u: User) => u.role === 'author').length,
+      }
+      setStats(calculatedStats)
+      
     } catch (error) {
       console.error('Error fetching users data:', error)
-      // Fallback to empty state
+      toast({
+        title: "Error",
+        description: "Failed to load users data. Please try again.",
+        variant: "destructive"
+      })
+      
+      // Fallback to empty state on any error
       setUsers([])
       setStats({
         totalUsers: 0,
@@ -280,23 +309,34 @@ export default function AdminUsersPage() {
   }
 
   const getStatusColor = (isActive: boolean, isVerified: boolean) => {
-    if (!isVerified) {
+    // Handle undefined/null values safely
+    const active = Boolean(isActive)
+    const verified = Boolean(isVerified)
+    
+    if (!verified) {
       return "bg-yellow-100 text-yellow-800" // Pending verification
     }
-    if (isActive) {
+    if (active) {
       return "bg-green-100 text-green-800" // Active
     }
     return "bg-gray-100 text-gray-800" // Inactive
   }
 
   const getStatusText = (isActive: boolean, isVerified: boolean) => {
-    if (!isVerified) return "Pending"
-    if (isActive) return "Active"
+    // Handle undefined/null values safely
+    const active = Boolean(isActive)
+    const verified = Boolean(isVerified)
+    
+    if (!verified) return "Pending"
+    if (active) return "Active"
     return "Inactive"
   }
 
   const getRoleColor = (role: string) => {
-    switch (role) {
+    // Handle undefined/null role values
+    const userRole = role || 'author'
+    
+    switch (userRole) {
       case "admin":
         return "bg-purple-100 text-purple-800"
       case "editor-in-chief":
@@ -316,14 +356,24 @@ export default function AdminUsersPage() {
     }
   }
 
-  const filteredUsers = (Array.isArray(users) ? users : []).filter(user => {
-    const matchesRole = filterRole === "all" || user.role === filterRole
-    const status = getStatusText(user.isActive, user.isVerified).toLowerCase()
+  const filteredUsers = Array.isArray(users) ? users.filter(user => {
+    // Ensure user object is valid
+    if (!user || typeof user !== 'object') return false
+    
+    // Safe property access with fallbacks
+    const userName = user.name || ''
+    const userEmail = user.email || ''
+    const userRole = user.role || ''
+    const userIsActive = Boolean(user.isActive)
+    const userIsVerified = Boolean(user.isVerified)
+    
+    const matchesRole = filterRole === "all" || userRole === filterRole
+    const status = getStatusText(userIsActive, userIsVerified).toLowerCase()
     const matchesStatus = filterStatus === "all" || status === filterStatus
-    const matchesSearch = (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (user.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         userEmail.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesRole && matchesStatus && matchesSearch
-  })
+  }) : []
 
   if (loading) {
     return (
@@ -515,124 +565,141 @@ export default function AdminUsersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        {user.name}
-                        {user.isVerified ? (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-red-500" />
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge className={getRoleColor(user.role)}>
-                    {user.role.replace('-', ' ')}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge className={getStatusColor(user.isActive, user.isVerified)}>
-                    {getStatusText(user.isActive, user.isVerified)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="text-sm">
-                    <div>{user.submissionsCount} submissions</div>
-                    <div className="text-gray-500">{user.reviewsCount} reviews</div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="text-sm">
-                    {new Date(user.joinDate).toLocaleDateString()}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <span className="text-sm">
-                    {user.lastLogin === "Never" ? "Never" : new Date(user.lastLogin).toLocaleDateString()}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button
-                      onClick={() => setSelectedUser(user)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Manage User</DialogTitle>
-                          <DialogDescription>
-                            Update role and status for {user.name}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="text-sm font-medium">Role</label>
-                            <Select defaultValue={user.role}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="editor-in-chief">Editor-in-Chief</SelectItem>
-                                <SelectItem value="managing-editor">Managing Editor</SelectItem>
-                                <SelectItem value="section-editor">Section Editor</SelectItem>
-                                <SelectItem value="editor">Editor</SelectItem>
-                                <SelectItem value="reviewer">Reviewer</SelectItem>
-                                <SelectItem value="author">Author</SelectItem>
-                              </SelectContent>
-                            </Select>
+            {Array.isArray(filteredUsers) && filteredUsers.length > 0 ? (
+              filteredUsers.map((user) => {
+                // Ensure user object is valid before rendering
+                if (!user || typeof user !== 'object' || !user.id) {
+                  return null
+                }
+                
+                return (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <div className="font-medium flex items-center gap-2">
+                            {user.name || 'Unknown User'}
+                            {user.isVerified ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            )}
                           </div>
-                          <div>
-                            <label className="text-sm font-medium">Status</label>
-                            <Select defaultValue={getStatusText(user.isActive, user.isVerified).toLowerCase()}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="active">Active</SelectItem>
-                                <SelectItem value="inactive">Inactive</SelectItem>
-                                <SelectItem value="suspended">Suspended</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button 
-                              onClick={() => handleUpdateUserRole(user.id, 'editor')}
-                              className="flex-1"
-                            >
-                              Update
-                            </Button>
-                            <Button 
-                              onClick={() => handleDeleteUser(user.id)}
-                              variant="destructive"
-                              size="sm"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <div className="text-sm text-gray-500">{user.email || 'No email'}</div>
                         </div>
-                      </DialogContent>
-                    </Dialog>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getRoleColor(user.role || 'author')}>
+                        {(user.role || 'author').replace('-', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(user.isActive, user.isVerified)}>
+                        {getStatusText(user.isActive, user.isVerified)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div>{user.submissionsCount || 0} submissions</div>
+                        <div className="text-gray-500">{user.reviewsCount || 0} reviews</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">
+                        {user.joinDate ? new Date(user.joinDate).toLocaleDateString() : 'Unknown'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">
+                        {user.lastLogin === "Never" || !user.lastLogin ? "Never" : new Date(user.lastLogin).toLocaleDateString()}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          onClick={() => setSelectedUser(user)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Manage User</DialogTitle>
+                              <DialogDescription>
+                                Update role and status for {user.name || 'this user'}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-sm font-medium">Role</label>
+                                <Select defaultValue={user.role || 'author'}>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="editor-in-chief">Editor-in-Chief</SelectItem>
+                                    <SelectItem value="managing-editor">Managing Editor</SelectItem>
+                                    <SelectItem value="section-editor">Section Editor</SelectItem>
+                                    <SelectItem value="editor">Editor</SelectItem>
+                                    <SelectItem value="reviewer">Reviewer</SelectItem>
+                                    <SelectItem value="author">Author</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium">Status</label>
+                                <Select defaultValue={getStatusText(user.isActive, user.isVerified).toLowerCase()}>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="active">Active</SelectItem>
+                                    <SelectItem value="inactive">Inactive</SelectItem>
+                                    <SelectItem value="suspended">Suspended</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button 
+                                  onClick={() => handleUpdateUserRole(user.id, 'editor')}
+                                  className="flex-1"
+                                >
+                                  Update
+                                </Button>
+                                <Button 
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  variant="destructive"
+                                  size="sm"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            ) : (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-8">
+                  <div className="text-gray-500">
+                    {loading ? "Loading users..." : "No users found"}
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </Card>
@@ -642,14 +709,14 @@ export default function AdminUsersPage() {
         <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{selectedUser.name}</DialogTitle>
-              <DialogDescription>{selectedUser.email}</DialogDescription>
+              <DialogTitle>{selectedUser.name || 'Unknown User'}</DialogTitle>
+              <DialogDescription>{selectedUser.email || 'No email'}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Role</label>
-                  <p className="text-sm text-gray-600">{selectedUser.role.replace('-', ' ')}</p>
+                  <p className="text-sm text-gray-600">{(selectedUser.role || 'author').replace('-', ' ')}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Status</label>
@@ -658,22 +725,22 @@ export default function AdminUsersPage() {
                 <div>
                   <label className="text-sm font-medium">Join Date</label>
                   <p className="text-sm text-gray-600">
-                    {new Date(selectedUser.joinDate).toLocaleDateString()}
+                    {selectedUser.joinDate ? new Date(selectedUser.joinDate).toLocaleDateString() : 'Unknown'}
                   </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Last Login</label>
                   <p className="text-sm text-gray-600">
-                    {selectedUser.lastLogin === "Never" ? "Never" : new Date(selectedUser.lastLogin).toLocaleDateString()}
+                    {selectedUser.lastLogin === "Never" || !selectedUser.lastLogin ? "Never" : new Date(selectedUser.lastLogin).toLocaleDateString()}
                   </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Submissions</label>
-                  <p className="text-sm text-gray-600">{selectedUser.submissionsCount}</p>
+                  <p className="text-sm text-gray-600">{selectedUser.submissionsCount || 0}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Reviews Completed</label>
-                  <p className="text-sm text-gray-600">{selectedUser.reviewsCount}</p>
+                  <p className="text-sm text-gray-600">{selectedUser.reviewsCount || 0}</p>
                 </div>
               </div>
               <div>
