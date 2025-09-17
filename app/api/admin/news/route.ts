@@ -84,7 +84,6 @@ async function createNews(request: NextRequest) {
 
     // Create news item
     const [newNewsItem] = await db.insert(news).values({
-      id: uuidv4(),
       title: validatedData.title,
       content: validatedData.content,
       excerpt: validatedData.excerpt,
