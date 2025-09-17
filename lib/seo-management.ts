@@ -1,7 +1,8 @@
 import { logger } from "./logger"
 import { db } from "./db"
-import { articles, journals } from "./db/schema"
+import { articles } from "./db/schema"
 import { eq } from "drizzle-orm"
+import { NotFoundError } from "./error-utils"
 
 export interface SEOMetadata {
   title: string
@@ -25,16 +26,26 @@ export interface ArticleSEOData {
   id: string
   title: string
   abstract: string
-  authors: string[]
-  authorAffiliations: string[]
-  keywords: string[]
+  coAuthors: CoAuthor[] | null
+  keywords: string[] | null
   category: string
-  publishedDate: string
-  doi?: string
+  publishedDate: Date | null
+  doi?: string | null
   url: string
-  pdfUrl?: string
-  citationCount: number
-  viewCount: number
+  citationCount: number // Will use citations field or default to 0
+  viewCount: number // Will use views field or default to 0
+}
+
+interface CoAuthor {
+  firstName: string
+  lastName: string
+  email: string
+  affiliation?: string
+  orcid?: string
+  institution?: string
+  department?: string
+  country?: string
+  isCorrespondingAuthor?: boolean
 }
 
 export interface SitemapEntry {
@@ -78,11 +89,15 @@ export class SEOManagementService {
       const seoDescription = this.optimizeDescription(articleData.abstract)
 
       // Combine article keywords with inferred keywords
+      const authorKeywords = articleData.coAuthors
+        ? articleData.coAuthors.slice(0, 3).map(author => `${author.firstName} ${author.lastName}`)
+        : []
+      
       const seoKeywords = [
-        ...articleData.keywords,
+        ...(articleData.keywords || []),
         ...this.extractKeywordsFromContent(articleData.title, articleData.abstract),
         articleData.category,
-        ...articleData.authors.slice(0, 3) // Include top 3 authors as keywords
+        ...authorKeywords
       ].filter(Boolean).slice(0, 20) // Limit to 20 keywords
 
       // Generate structured data for the article
@@ -90,16 +105,14 @@ export class SEOManagementService {
         id: articleData.id,
         title: articleData.title,
         abstract: articleData.abstract,
-        authors: articleData.authors,
-        authorAffiliations: articleData.authorAffiliations,
-        keywords: articleData.keywords,
+        coAuthors: articleData.coAuthors,
+        keywords: articleData.keywords || [],
         category: articleData.category,
         publishedDate: articleData.publishedDate,
-        doi: articleData.doi,
+        doi: articleData.doi || undefined,
         url: articleUrl,
-        pdfUrl: articleData.pdfUrl,
-        citationCount: articleData.citationCount,
-        viewCount: articleData.viewCount
+        citationCount: articleData.citations || 0,
+        viewCount: articleData.views || 0
       })
 
       return {
@@ -190,7 +203,7 @@ export class SEOManagementService {
         filters?.category,
         filters?.year,
         this.journalName.toLowerCase()
-      ].filter(Boolean),
+      ].filter((keyword): keyword is string => Boolean(keyword)),
       canonical: archiveUrl,
       ogTitle: title,
       ogDescription: description,
@@ -245,9 +258,10 @@ export class SEOManagementService {
         .where(eq(articles.status, 'published'))
 
       publishedArticles.forEach(article => {
+        const lastModified = article.updatedAt || article.publishedDate
         sitemap.push({
           url: `${this.baseUrl}/article/${article.id}`,
-          lastModified: article.updatedAt || article.publishedDate,
+          lastModified: lastModified ? lastModified.toISOString() : new Date().toISOString(),
           changeFrequency: 'monthly',
           priority: 0.8
         })
@@ -354,15 +368,15 @@ Allow: /about/`
       "@type": "ScholarlyArticle",
       "headline": article.title,
       "description": article.abstract,
-      "author": article.authors.map((author, index) => ({
+      "author": article.coAuthors?.map((author) => ({
         "@type": "Person",
-        "name": author,
-        "affiliation": article.authorAffiliations[index] ? {
+        "name": `${author.firstName} ${author.lastName}`,
+        "affiliation": author.affiliation ? {
           "@type": "Organization",
-          "name": article.authorAffiliations[index]
+          "name": author.affiliation
         } : undefined
-      })),
-      "datePublished": article.publishedDate,
+      })) || [],
+      "datePublished": article.publishedDate?.toISOString(),
       "publisher": {
         "@type": "Organization",
         "name": this.journalName,
@@ -415,11 +429,12 @@ Allow: /about/`
     }
   }
 
-  private generateOGImage(article: unknown): string {
+  private generateOGImage(article: { id: string; title: string; coAuthors: CoAuthor[] | null; category: string }): string {
     // Generate dynamic OG image URL (would integrate with image generation service)
+    const authorNames = article.coAuthors?.slice(0, 3).map(author => `${author.firstName} ${author.lastName}`).join(', ') || 'Anonymous'
     const params = new URLSearchParams({
       title: article.title.substring(0, 100),
-      authors: article.authors.slice(0, 3).join(', '),
+      authors: authorNames,
       category: article.category
     })
     

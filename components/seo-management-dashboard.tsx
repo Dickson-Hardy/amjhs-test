@@ -92,7 +92,7 @@ export default function SEOManagementDashboard() {
       }
 
       // Load articles SEO data
-      const articlesResponse = await fetch('/api/seo?action=articles-seo')
+      const articlesResponse = await fetch('/api/seo?action=article-seo')
       const articlesData = await articlesResponse.json()
       
       if (articlesData.success) {

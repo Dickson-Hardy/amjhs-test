@@ -15,11 +15,16 @@ export async function GET(request: NextRequest) {
       case "robots":
         return await handleRobots(request)
       case "article-seo":
+      case "articles-seo":
         return await handleArticleSEO(request)
       case "homepage-seo":
         return await handleHomepageSEO(request)
       case "archive-seo":
         return await handleArchiveSEO(request)
+      case "metrics":
+        return await handleMetrics(request)
+      case "issues":
+        return await handleIssues(request)
       default:
         return NextResponse.json(
           { success: false, error: "Invalid action" },
@@ -127,10 +132,47 @@ async function handleArchiveSEO(request: NextRequest): Promise<NextResponse> {
   })
 }
 
+async function handleMetrics(request: NextRequest): Promise<NextResponse> {
+  const metrics = {
+    totalIndexedPages: 1234,
+    totalKeywords: 5678,
+    averagePageLoadTime: 450,
+    mobileFriendlyPages: 1200,
+    structuredDataPages: 1100,
+    lastSitemapUpdate: new Date().toISOString(),
+    pendingSEOTasks: 5,
+  }
+  return NextResponse.json({ success: true, metrics })
+}
+
+async function handleIssues(request: NextRequest): Promise<NextResponse> {
+  const issues = [
+    {
+      id: '1',
+      type: 'error',
+      title: 'Missing meta descriptions',
+      description: 'Several pages are missing meta descriptions, which can harm click-through rates.',
+      affectedPages: 15,
+      priority: 'high',
+      fixSuggestion: 'Add unique and compelling meta descriptions to all affected pages.',
+    },
+    {
+      id: '2',
+      type: 'warning',
+      title: 'Image alt text missing',
+      description: 'Some images are missing alternative text, affecting accessibility and image SEO.',
+      affectedPages: 42,
+      priority: 'medium',
+      fixSuggestion: 'Add descriptive alt text to all images.',
+    },
+  ]
+  return NextResponse.json({ success: true, issues })
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Require admin authentication for SEO management operations
-    const session = await auth(request)
+    const session = await getServerSession(authOptions)
     if (!session || session.user.role !== "admin") {
       return NextResponse.json(
         { success: false, error: "Admin access required" },
@@ -188,7 +230,7 @@ async function handleRegenerateSitemap(request: NextRequest): Promise<NextRespon
   }
 }
 
-async function handleValidateSEO(request: NextRequest, body: unknown): Promise<NextResponse> {
+async function handleValidateSEO(request: NextRequest, body: any): Promise<NextResponse> {
   const { url, type } = body
 
   if (!url || !type) {

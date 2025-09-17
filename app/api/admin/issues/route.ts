@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { issues, articles } from "@/lib/db/schema"
 import { eq, desc, count } from "drizzle-orm"
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     // Fetch all issues with article counts
     const issuesWithCounts = await db.select({
       id: issues.id,
-      volume: issues.volume,
+      volumeId: issues.volumeId,
       number: issues.number,
       title: issues.title,
       description: issues.description,
@@ -29,14 +29,12 @@ export async function GET(request: NextRequest) {
       publishedDate: issues.publishedDate,
       guestEditors: issues.guestEditors,
       coverImage: issues.coverImage,
-      pageRange: issues.pageRange,
-      doi: issues.doi,
       createdAt: issues.createdAt,
       updatedAt: issues.updatedAt,
       articlesCount: count(articles.id)
     })
     .from(issues)
-    .leftJoin(articles, eq(articles.issueId, issues.id))
+    .leftJoin(articles, eq(articles.issue, issues.number))
     .groupBy(issues.id)
     .orderBy(desc(issues.createdAt))
 
