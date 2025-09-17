@@ -89,7 +89,8 @@ export async function GET(request: Request) {
         authorEmail: users.email,
       })
       .from(articles)
-      .leftJoin(users, eq(articles.authorId, users.id))
+      .leftJoin(submissions, eq(articles.id, submissions.articleId))
+      .leftJoin(users, eq(submissions.authorId, users.id))
 
     const finalQuery = whereConditions.length > 0 
       ? baseQuery.where(and(...whereConditions))
