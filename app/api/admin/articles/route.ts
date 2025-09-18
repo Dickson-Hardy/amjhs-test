@@ -79,8 +79,6 @@ export async function GET(request: Request) {
         views: articles.views,
         downloads: articles.downloads,
         doi: articles.doi,
-        doiRegistered: articles.doiRegistered,
-        doiRegisteredAt: articles.doiRegisteredAt,
         volume: articles.volume,
         issue: articles.issue,
         articleNumber: articles.articleNumber,
@@ -89,8 +87,7 @@ export async function GET(request: Request) {
         authorEmail: users.email,
       })
       .from(articles)
-      .leftJoin(submissions, eq(articles.id, submissions.articleId))
-      .leftJoin(users, eq(submissions.authorId, users.id))
+      .leftJoin(users, eq(articles.authorId, users.id))
 
     const finalQuery = whereConditions.length > 0 
       ? baseQuery.where(and(...whereConditions))
