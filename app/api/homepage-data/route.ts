@@ -48,13 +48,14 @@ export async function GET() {
           id: news.id,
           title: news.title,
           excerpt: news.excerpt,
-          publishedDate: news.publishedDate,
+          publishedAt: news.publishedAt,
           category: news.category,
-          featured: news.featured,
+          type: news.type,
+          authorName: news.authorName
         })
         .from(news)
-        .where(eq(news.status, "published"))
-        .orderBy(desc(news.publishedDate))
+        .where(eq(news.isPublished, true))
+        .orderBy(desc(news.publishedAt))
         .limit(5),
 
       // Journal info
@@ -125,6 +126,21 @@ export async function GET() {
       totalViews: articlesMetrics.reduce((sum, article) => sum + (article.views || 0), 0),
     }
 
+    // Format news data for frontend consumption
+    const formattedNews = newsData.map(item => ({
+      id: item.id,
+      title: item.title,
+      excerpt: item.excerpt,
+      date: item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }) : 'No date',
+      category: item.category,
+      type: item.type,
+      authorName: item.authorName || 'Editorial Team'
+    }))
+
     // Get journal info with stats
     const journalData = journalInfoData.length > 0 ? journalInfoData[0] : null
     
@@ -144,7 +160,7 @@ export async function GET() {
           guestEditors: currentIssue.guestEditors,
         } : null,
         currentIssueArticles,
-        news: newsData,
+        news: formattedNews,
         journalInfo: journalData,
         stats: calculatedStats,
       }

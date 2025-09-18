@@ -39,6 +39,30 @@ export async function PUT(
       .replace(/\s+/g, '-')
       .slice(0, 50)
 
+    // Check current status to determine if this is a new publication
+    const [currentItem] = await db.select({ isPublished: news.isPublished, publishedAt: news.publishedAt })
+      .from(news)
+      .where(eq(news.id, id))
+      .limit(1)
+
+    if (!currentItem) {
+      return NextResponse.json({
+        success: false,
+        error: "News item not found"
+      }, { status: 404 })
+    }
+
+    // Determine publishedAt value
+    let publishedAt = currentItem.publishedAt
+    if (isPublished && !currentItem.isPublished) {
+      // Publishing for the first time
+      publishedAt = new Date()
+    } else if (!isPublished) {
+      // Unpublishing
+      publishedAt = null
+    }
+    // If already published and staying published, keep the original publishedAt
+
     // Update news item
     const [updatedNewsItem] = await db.update(news)
       .set({
@@ -48,7 +72,7 @@ export async function PUT(
         type: type || 'announcement',
         category: category || '',
         authorName: authorName || 'Editorial Team',
-        publishedAt: isPublished ? new Date() : null,
+        publishedAt,
         isPublished: isPublished || false,
         slug,
         tags: tags || [],

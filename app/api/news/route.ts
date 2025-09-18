@@ -4,10 +4,15 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { db } from "@/lib/db"
 import { news, articles } from "@/lib/db/schema"
 import { eq, desc, and } from "drizzle-orm"
+import type { InferSelectModel } from "drizzle-orm"
 import { logError } from "@/lib/logger"
 
 export async function GET(request: Request) {
   try {
+    type NewsItem = Pick<InferSelectModel<typeof news>,
+      'id' | 'title' | 'content' | 'excerpt' | 'type' | 'category' | 'authorName' | 'publishedAt' | 'slug' | 'tags'
+    >
+
     // Optional authentication - public route but enhanced for authenticated users
     const session = await getServerSession(authOptions)
     
@@ -20,7 +25,7 @@ export async function GET(request: Request) {
     const includeInternalNews = session?.user?.role === 'admin' || session?.user?.role === 'editor'
 
     // Try to get news from the news table first
-    let newsItems: unknown[] = []
+    let newsItems: NewsItem[] = []
     try {
       newsItems = await db.select({
         id: news.id,
@@ -40,7 +45,7 @@ export async function GET(request: Request) {
       .offset(offset)
 
       if (type) {
-        newsItems = newsItems.filter(item => item.type === type)
+        newsItems = newsItems.filter((item) => item.type === type)
       }
     } catch (dbError) {
       logError(dbError as Error, { endpoint: '/api/news', message: 'News table not available, using fallback data' })
@@ -61,22 +66,22 @@ export async function GET(request: Request) {
     }
 
     // Filter by type if specified
-    const filteredNews = type 
-      ? newsItems.filter(item => item.type === type || item.category === type)
+    const filteredNews: NewsItem[] = type 
+      ? newsItems.filter((item) => item.type === type || item.category === type)
       : newsItems
 
     // Apply pagination
-    const paginatedNews = filteredNews.slice(offset, offset + limit)
+  const paginatedNews: NewsItem[] = filteredNews.slice(offset, offset + limit)
 
     // Format for frontend
-    const formattedNews = paginatedNews.map(item => ({
+    const formattedNews = paginatedNews.map((item) => ({
       id: item.id,
       title: item.title,
-      date: new Date(item.publishedAt).toLocaleDateString('en-US', {
+      date: item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long', 
         day: 'numeric'
-      }),
+      }) : 'No date',
       excerpt: item.excerpt,
       type: item.type,
       category: item.category,

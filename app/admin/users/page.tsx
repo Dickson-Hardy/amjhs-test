@@ -66,6 +66,9 @@ export default function AdminUsersPage() {
   const [filterStatus, setFilterStatus] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false })
   const [createUserForm, setCreateUserForm] = useState({
     name: '',
     email: '',
@@ -77,46 +80,52 @@ export default function AdminUsersPage() {
     if (session?.user?.role && ["admin", "editor-in-chief"].includes(session.user.role)) {
       fetchUsersData()
     }
-  }, [session])
+  }, [session, page, limit, filterRole, filterStatus, searchTerm])
+
+  // Reset to first page when filters/search change
+  useEffect(() => {
+    setPage(1)
+  }, [filterRole, filterStatus, searchTerm])
 
   const fetchUsersData = async () => {
     try {
       setLoading(true)
       
-      const response = await fetch('/api/admin/users')
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('limit', String(limit))
+  if (filterRole && filterRole !== 'all') params.set('role', filterRole)
+  if (searchTerm) params.set('search', searchTerm)
+  const response = await fetch(`/api/admin/users?${params.toString()}`)
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       
       const data = await response.json()
-      
-      console.log('API Response:', data) // Debug log
-      
-      // Handle different possible response structures
-      let usersData: User[] = []
-      
-      if (data && typeof data === 'object') {
-        if (data.success === true) {
-          // Paginated response structure
-          usersData = Array.isArray(data.data) ? data.data : []
-        } else if (Array.isArray(data.data)) {
-          // Direct data property
-          usersData = data.data
-        } else if (Array.isArray(data)) {
-          // Direct array response
-          usersData = data
-        }
-      }
-      
-      // Ensure usersData is always an array
-      if (!Array.isArray(usersData)) {
-        console.warn('Users data is not an array, falling back to empty array:', usersData)
-        usersData = []
+
+      // Normalize to an array regardless of structure
+      const rawUsers: unknown = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data)
+          ? data
+          : []
+      const usersData: any[] = Array.isArray(rawUsers) ? rawUsers : []
+      // Capture pagination if present
+      if (data?.pagination) {
+        setPagination({
+          page: data.pagination.page,
+          limit: data.pagination.limit,
+          total: data.pagination.total,
+          totalPages: data.pagination.totalPages,
+          hasMore: data.pagination.hasMore,
+        })
+      } else {
+        setPagination({ page, limit, total: usersData.length, totalPages: 1, hasMore: false })
       }
       
       // Validate and sanitize user data
-      const validUsersData = usersData.filter((user): user is User => {
+      const validUsersData: User[] = (usersData || []).filter((user): user is User => {
         return user && 
                typeof user === 'object' && 
                typeof user.id === 'string' &&
@@ -128,14 +137,15 @@ export default function AdminUsersPage() {
       setUsers(validUsersData)
       
       // Calculate stats safely
+      const list = Array.isArray(validUsersData) ? validUsersData : []
       const calculatedStats = {
-        totalUsers: validUsersData.length,
-        activeUsers: validUsersData.filter((u: User) => u.isActive === true).length,
-        pendingUsers: validUsersData.filter((u: User) => u.isVerified === false).length,
-        adminUsers: validUsersData.filter((u: User) => u.role === 'admin').length,
-        editorUsers: validUsersData.filter((u: User) => u.role === 'associate_editor' || u.role === 'editor').length,
-        reviewerUsers: validUsersData.filter((u: User) => u.role === 'reviewer').length,
-        authorUsers: validUsersData.filter((u: User) => u.role === 'author').length,
+        totalUsers: list.length,
+        activeUsers: list.filter((u: User) => u.isActive === true).length,
+        pendingUsers: list.filter((u: User) => u.isVerified === false).length,
+        adminUsers: list.filter((u: User) => u.role === 'admin').length,
+        editorUsers: list.filter((u: User) => u.role === 'associate_editor' || u.role === 'editor').length,
+        reviewerUsers: list.filter((u: User) => u.role === 'reviewer').length,
+        authorUsers: list.filter((u: User) => u.role === 'author').length,
       }
       setStats(calculatedStats)
       
@@ -552,6 +562,12 @@ export default function AdminUsersPage() {
 
       {/* Users Table */}
       <Card>
+            <CardHeader>
+              <CardTitle>All Users</CardTitle>
+              <CardDescription>
+                Showing {users.length} of {pagination.total} users · Page {pagination.page} of {Math.max(pagination.totalPages, 1)}
+              </CardDescription>
+            </CardHeader>
         <Table>
           <TableHeader>
             <TableRow>
@@ -702,6 +718,42 @@ export default function AdminUsersPage() {
             )}
           </TableBody>
         </Table>
+        <CardContent>
+          <div className="flex items-center justify-between mt-4 gap-3">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <div className="text-sm text-gray-600">Page {pagination.page} of {Math.max(pagination.totalPages, 1)}</div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!pagination.hasMore}
+                onClick={() => setPage(p => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Per page</span>
+              <Select value={String(limit)} onValueChange={(v) => setLimit(parseInt(v))}>
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
       </Card>
 
       {/* User Details Dialog */}

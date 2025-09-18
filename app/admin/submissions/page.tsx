@@ -71,111 +71,91 @@ export default function AdminSubmissionsPage() {
   const [filterCategory, setFilterCategory] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false })
 
   useEffect(() => {
     if (session?.user?.role !== "admin") return
     fetchSubmissionsData()
-  }, [session])
+  }, [session, page, limit, filterStatus, filterCategory, searchTerm])
+
+  // Reset to first page when filters/search change
+  useEffect(() => {
+    setPage(1)
+  }, [filterStatus, filterCategory, searchTerm])
 
   const fetchSubmissionsData = async () => {
     try {
       setLoading(true)
-      
-      // Mock data - replace with actual API calls
-      setStats({
-        totalSubmissions: 142,
-        pendingReview: 18,
-        underReview: 25,
-        awaitingDecision: 8,
-        accepted: 45,
-        rejected: 23,
-        published: 23,
-        averageReviewTime: 21,
-      })
+      const params = new URLSearchParams()
+  if (filterStatus && filterStatus !== 'all') params.set('status', filterStatus)
+  if (filterCategory && filterCategory !== 'all') params.set('category', filterCategory)
+  if (searchTerm) params.set('search', searchTerm)
+  params.set('page', String(page))
+  params.set('limit', String(limit))
 
-      setSubmissions([
-        {
-          id: "1",
-          title: "Advanced Cardiac Surgery Techniques in Pediatric Patients",
-          authors: ["Dr. Sarah Johnson", "Dr. Michael Chen", "Dr. Lisa Wong"],
-          submittedDate: "2024-01-15",
-          status: 'under_review',
-          category: "Cardiology",
-          priority: 'high',
-          reviewers: [
-            { id: "1", name: "Dr. Robert Kim", status: "reviewing" },
-            { id: "2", name: "Dr. Anna Smith", status: "completed" }
-          ],
-          editor: "Dr. James Wilson",
-          wordCount: 4500,
-          lastUpdate: "2024-01-20",
-        },
-        {
-          id: "2",
-          title: "AI Applications in Medical Diagnosis: A Comprehensive Study",
-          authors: ["Prof. Emily Watson", "Dr. David Park"],
-          submittedDate: "2024-01-10",
-          status: 'revision_requested',
-          category: "Technology",
-          priority: 'medium',
-          reviewers: [
-            { id: "3", name: "Dr. Steven Miller", status: "completed" },
-            { id: "4", name: "Dr. Rachel Green", status: "completed" }
-          ],
-          editor: "Dr. Maria Garcia",
-          wordCount: 6200,
-          lastUpdate: "2024-01-18",
-        },
-        {
-          id: "3",
-          title: "Neurological Disorders in Elderly Patients: Prevention and Treatment",
-          authors: ["Dr. Jennifer Lee"],
-          submittedDate: "2024-01-08",
-          status: 'accepted',
-          category: "Neurology",
-          priority: 'high',
-          reviewers: [
-            { id: "5", name: "Dr. Alex Johnson", status: "completed" },
-            { id: "6", name: "Dr. Sophie Brown", status: "completed" }
-          ],
-          editor: "Dr. Thomas Anderson",
-          wordCount: 5800,
-          lastUpdate: "2024-01-22",
-          doi: "10.1234/amhsj.2024.003"
-        },
-        {
-          id: "4",
-          title: "Mental Health in Healthcare Workers: Post-Pandemic Analysis",
-          authors: ["Dr. Mark Davis", "Dr. Susan Taylor", "Dr. Peter White"],
-          submittedDate: "2024-01-12",
-          status: 'submitted',
-          category: "Psychiatry",
-          priority: 'medium',
-          reviewers: [],
-          editor: "Not assigned",
-          wordCount: 4200,
-          lastUpdate: "2024-01-12",
-        },
-        {
-          id: "5",
-          title: "Innovative Surgical Techniques for Minimally Invasive Procedures",
-          authors: ["Dr. Catherine Moore", "Dr. Daniel Kim"],
-          submittedDate: "2024-01-14",
-          status: 'published',
-          category: "Surgery",
-          priority: 'low',
-          reviewers: [
-            { id: "7", name: "Dr. Helen Clark", status: "completed" },
-            { id: "8", name: "Dr. George Adams", status: "completed" }
-          ],
-          editor: "Dr. Nancy Wilson",
-          wordCount: 5200,
-          lastUpdate: "2024-01-25",
-          doi: "10.1234/amhsj.2024.005"
-        }
-      ])
+      const res = await fetch(`/api/admin/submissions?${params.toString()}`)
+      if (!res.ok) {
+        throw new Error(`Failed to load submissions (${res.status})`)
+      }
+      const data = await res.json()
+
+      const apiItems = Array.isArray(data?.data) ? data.data : []
+      // Map API to UI model; fill demo-friendly fields
+      const mapped: Submission[] = apiItems.map((item: any) => ({
+        id: item.id || item.submissionId,
+        title: item.title || 'Untitled',
+        authors: item.author?.name ? [item.author.name] : [],
+        submittedDate: item.submittedDate || new Date().toISOString(),
+        status: (item.status || 'submitted') as Submission['status'],
+        category: item.category || 'General',
+        priority: 'medium',
+        reviewers: [],
+        editor: item.assignedEditor || 'Not assigned',
+        wordCount: 0,
+        lastUpdate: item.updatedAt || item.submittedDate || new Date().toISOString(),
+        doi: undefined,
+      }))
+
+      setSubmissions(mapped)
+      if (data?.pagination) {
+        setPagination({
+          page: data.pagination.page,
+          limit: data.pagination.limit,
+          total: data.pagination.total,
+          totalPages: data.pagination.totalPages,
+          hasMore: data.pagination.hasMore,
+        })
+      } else {
+        setPagination({ page, limit, total: mapped.length, totalPages: 1, hasMore: false })
+      }
+
+      // Compute lightweight stats from mapped data
+      const statsComputed = {
+        totalSubmissions: mapped.length,
+        pendingReview: mapped.filter(s => s.status === 'submitted').length,
+        underReview: mapped.filter(s => s.status === 'under_review').length,
+        awaitingDecision: mapped.filter(s => s.status === 'revision_requested').length,
+        accepted: mapped.filter(s => s.status === 'accepted').length,
+        rejected: mapped.filter(s => s.status === 'rejected').length,
+        published: mapped.filter(s => s.status === 'published').length,
+        averageReviewTime: 0,
+      }
+      setStats(statsComputed)
     } catch (error) {
-      logger.error('Error fetching submissions data:', error)
+      console.error('Error fetching submissions data:', error)
+      setSubmissions([])
+      setStats({
+        totalSubmissions: 0,
+        pendingReview: 0,
+        underReview: 0,
+        awaitingDecision: 0,
+        accepted: 0,
+        rejected: 0,
+        published: 0,
+        averageReviewTime: 0,
+      })
     } finally {
       setLoading(false)
     }
@@ -216,12 +196,8 @@ export default function AdminSubmissionsPage() {
   }
 
   const filteredSubmissions = submissions.filter(submission => {
-    const matchesStatus = filterStatus === "all" || submission.status === filterStatus
-    const matchesCategory = filterCategory === "all" || submission.category === filterCategory
-    const matchesSearch = submission.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         submission.authors.some(author => author.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                         submission.category.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesStatus && matchesCategory && matchesSearch
+    // Server-side filters applied; no extra client filtering needed
+    return true
   })
 
   if (loading) {
@@ -349,10 +325,45 @@ export default function AdminSubmissionsPage() {
           <CardHeader>
             <CardTitle>All Submissions</CardTitle>
             <CardDescription>
-              Showing {filteredSubmissions.length} of {submissions.length} submissions
+              Showing {submissions.length} of {pagination.total} submissions · Page {pagination.page} of {Math.max(pagination.totalPages, 1)}
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <div className="text-sm text-gray-600">Page {pagination.page} of {Math.max(pagination.totalPages, 1)}</div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!pagination.hasMore}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Per page</span>
+                <Select value={String(limit)} onValueChange={(v) => setLimit(parseInt(v))}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
