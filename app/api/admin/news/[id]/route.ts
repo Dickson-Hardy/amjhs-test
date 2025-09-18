@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { news } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
@@ -9,10 +9,11 @@ import { logError, logInfo } from "@/lib/logger"
 // PUT - Update news item
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
+  const { id } = params
+  const newsId = Number(id)
     const session = await getServerSession(authOptions)
     
     if (!session?.user || session.user.role !== 'admin') {
@@ -42,7 +43,7 @@ export async function PUT(
     // Check current status to determine if this is a new publication
     const [currentItem] = await db.select({ isPublished: news.isPublished, publishedAt: news.publishedAt })
       .from(news)
-      .where(eq(news.id, id))
+      .where(eq(news.id, newsId))
       .limit(1)
 
     if (!currentItem) {
@@ -78,7 +79,7 @@ export async function PUT(
         tags: tags || [],
         updatedAt: new Date()
       })
-      .where(eq(news.id, id))
+      .where(eq(news.id, newsId))
       .returning()
 
     if (!updatedNewsItem) {
@@ -112,10 +113,11 @@ export async function PUT(
 // DELETE - Delete news item
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
+    const { id } = params
+    const newsId = Number(id)
     const session = await getServerSession(authOptions)
     
     if (!session?.user || session.user.role !== 'admin') {
@@ -128,7 +130,7 @@ export async function DELETE(
     // Check if news item exists
     const [existingItem] = await db.select()
       .from(news)
-      .where(eq(news.id, id))
+      .where(eq(news.id, newsId))
       .limit(1)
 
     if (!existingItem) {
@@ -139,7 +141,7 @@ export async function DELETE(
     }
 
     // Delete news item
-    await db.delete(news).where(eq(news.id, id))
+  await db.delete(news).where(eq(news.id, newsId))
 
     logInfo('News item deleted', { 
       newsId: id, 

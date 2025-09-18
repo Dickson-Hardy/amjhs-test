@@ -76,11 +76,24 @@ async function createNews(request: NextRequest) {
     const body = await request.json()
     const validatedData = validateRequest(CreateNewsSchema, body)
 
-    // Generate slug from title
-    const slug = validatedData.title.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
+    // Generate base slug from title
+    const baseSlug = validatedData.title.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
       .replace(/\s+/g, '-')
       .slice(0, 50)
+
+    // Ensure slug uniqueness by appending a counter if needed
+    let slug = baseSlug
+    let suffix = 1
+    while (true) {
+      const existing = await db.select({ id: news.id }).from(news).where(eq(news.slug, slug)).limit(1)
+      if (!existing || existing.length === 0) break
+      slug = `${baseSlug}-${suffix++}`.slice(0, 60)
+    }
+
+    // Normalize tags to an array of strings
+    const tags = Array.isArray(validatedData.tags) ? validatedData.tags.filter(t => typeof t === 'string') : []
 
     // Create news item
     const [newNewsItem] = await db.insert(news).values({
@@ -93,7 +106,7 @@ async function createNews(request: NextRequest) {
       publishedAt: validatedData.isPublished ? new Date() : null,
       isPublished: validatedData.isPublished,
       slug,
-      tags: validatedData.tags,
+      tags,
       createdAt: new Date(),
       updatedAt: new Date()
     }).returning()

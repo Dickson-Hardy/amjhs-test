@@ -340,19 +340,29 @@ export function hasPermission(userRole: string, requiredRole: string): boolean {
 /**
  * Database error handler
  */
-export function handleDatabaseError(error: unknown): never {
-  logger.error("Database error", { error: error.message, stack: error.stack })
-  
-  // Handle specific database errors
-  if (error.code === "23505") { // Unique violation
+export function handleDatabaseError(dbError: unknown): never {
+  const err: any = (dbError as any) ?? {}
+  const code = err?.code as string | undefined
+  const message = err?.message as string | undefined
+  const stack = err?.stack as string | undefined
+
+  logger.error("Database error", {
+    message: message ?? "Unknown database error",
+    code,
+    stack,
+    raw: typeof err === "object" ? JSON.stringify(err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)) : String(err)
+  })
+
+  // Handle specific PostgreSQL error codes when available
+  if (code === "23505") { // Unique violation
     throw new ValidationError("Resource already exists")
   }
   
-  if (error.code === "23503") { // Foreign key violation
+  if (code === "23503") { // Foreign key violation
     throw new ValidationError("Invalid reference to related resource")
   }
   
-  if (error.code === "23502") { // Not null violation
+  if (code === "23502") { // Not null violation
     throw new ValidationError("Required field is missing")
   }
   
